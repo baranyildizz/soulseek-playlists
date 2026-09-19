@@ -6,7 +6,7 @@ TXT şarkı listelerini slskd üzerinden arayıp DJ kullanımı için ayrı play
 
 Windows paketini GitHub Releases bölümünden indirin. ZIP'i açın; `Soulseek Playlists.exe` ve yanındaki `_internal` klasörünü birlikte tutun. İlk çalıştırmada slskd programını, slskd yapılandırma dosyasını, tamamlanan indirme klasörünü ve playlistlerin kaydedileceği klasörü seçin. Ayrıntılar için [PAYLASIM.md](PAYLASIM.md) dosyasına bakın.
 
-Bu depoda kişisel ayarlar, hesap bilgileri, müzik dosyaları, playlistler ve indirme geçmişi bulunmaz. slskd ayrıca kurulur ve kendi Soulseek hesabınızla yapılandırılır. Uygulama Soulseek hesabınızın parolasını istemez.
+Bu depoda kişisel ayarlar, hesap bilgileri, müzik dosyaları, playlistler ve indirme geçmişi bulunmaz. slskd ayrıca kurulur ve kendi Soulseek hesabınızla yapılandırılır.
 
 ## Kaynaktan çalıştırma
 
