@@ -17,7 +17,8 @@ Windows paketini GitHub Releases bölümünden indirin. ZIP'i açın; `Soulseek 
 
 [Windows için indir — v0.1.0-beta.1 (ZIP)](https://github.com/baranyildizz/soulseek-playlists/releases/download/v0.1.0-beta.1/Soulseek-Playlists-Windows.zip)
 
-Bu repoda kişisel ayarlar, hesap bilgileri, müzik dosyaları, playlistler ve indirme geçmişi bulunmaz. slskd ayrıca kurulur ve kendi Soulseek hesabınızla yapılandırılır.
+Bu repoda kişisel ayarlar, hesap bilgileri, müzik dosyaları, playlistler ve indirme geçmişi bulunmaz. 
+[slskd](https://github.com/slskd/slskd) ayrıca kurulmalıdır ve kendi [Soulseek](https://www.slsknet.org/news/node/680) hesabınızla yapılandırılmalıdır.
 
 
 ## Kaynaktan çalıştırma
