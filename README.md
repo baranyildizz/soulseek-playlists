@@ -17,6 +17,8 @@ Windows paketini GitHub Releases bölümünden indirin. ZIP'i açın; `Soulseek 
 
 [Windows için indir — v0.1.0-beta.1 (ZIP)](https://github.com/baranyildizz/soulseek-playlists/releases/download/v0.1.0-beta.1/Soulseek-Playlists-Windows.zip)
 
+Bu beta sürüm kod imzası taşımaz; Windows güvenlik uyarısı gösterebilir. İlk denemeyi 1–3 parçalık, indirme hakkınız olan bir listeyle yapın.
+
 Bu repoda kişisel ayarlar, hesap bilgileri, müzik dosyaları, playlistler ve indirme geçmişi bulunmaz. 
 
 
@@ -32,5 +34,5 @@ Python 3.10+ ortamında `requirements-gui.txt` bağımlılıklarını kurun ve `
 Mac sürümü henüz hazırlanmadı; platforma özgü slskd başlatma, yollar ve paketleme ayrıca uyarlanmalıdır.
 
 
-Bu özel test reposuna henüz kaynak kod lisansı eklenmedi. Üçüncü taraf bağımlılıkların lisansları dağıtım paketinde bulunur.
+Kaynak kod için henüz bir lisans eklenmedi. Üçüncü taraf bağımlılıkların lisansları dağıtım paketinde bulunur.
 
