@@ -34,5 +34,5 @@ Python 3.10+ ortamında `requirements-gui.txt` bağımlılıklarını kurun ve `
 Mac sürümü henüz hazırlanmadı; platforma özgü slskd başlatma, yollar ve paketleme ayrıca uyarlanmalıdır.
 
 
-Kaynak kod için henüz bir lisans eklenmedi. Üçüncü taraf bağımlılıkların lisansları dağıtım paketinde bulunur.
+Kaynak kod [MIT lisansı](LICENSE) altındadır. Üçüncü taraf bağımlılıkların lisansları dağıtım paketinde bulunur.
 
