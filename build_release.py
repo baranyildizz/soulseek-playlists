@@ -15,7 +15,7 @@ SOURCE_FILES = (
     'playlist_app.py', 'playlist_core.py', 'downloader.py', 'slskd_runtime.py',
     'app_setup.py', 'package_check.py', 'package_lifecycle.py', 'requirements.txt', 'requirements-gui.txt',
     'requirements-build.txt', 'build_release.py', 'test_playlist.py',
-    'test_slskd_runtime.py', 'test_distribution.py', 'PAYLASIM.md',
+    'test_slskd_runtime.py', 'test_distribution.py', 'PAYLASIM.md', 'LICENSE',
 )
 
 
@@ -65,6 +65,7 @@ def finalize(release):
     for name in ('vcruntime140.dll', 'vcruntime140_1.dll'):
         shutil.copy2(qt_root / name, app / '_internal' / name)
     shutil.copy2(source / 'PAYLASIM.md', app / 'BASLANGIC.md')
+    shutil.copy2(source / 'LICENSE', app / 'LICENSE')
     licenses = app / 'LICENSES'
     licenses.mkdir(exist_ok=True)
     versions = {}
