@@ -199,6 +199,16 @@ class PlaylistTests(unittest.TestCase):
         self.engine.fill_slots()
         self.assertEqual({a['peer'] for a in self.engine.active()},{'beta','gamma'})
 
+    def test_unfailed_mp3_peer_precedes_failed_flac_peer(self):
+        self.add_candidate(candidate('alpha'))
+        for peer in ('beta','gamma'):
+            c=candidate(peer,r'Prospa\Don’t Stop.mp3');c.extension='mp3';c.bitrate=320
+            self.add_candidate(c)
+        self.store.execute('INSERT INTO attempts(id,track,peer,filename,size,data,status,stage,created) VALUES(?,?,?,?,?,?,?,?,?)',
+            ('old',self.track['id'],'alpha',r'Prospa\Album\01 - Don’t Stop.flac',8*1048576,'{}','failed','',time.time()-90000))
+        self.engine.fill_slots()
+        self.assertEqual({a['peer'] for a in self.engine.active()},{'beta','gamma'})
+
     def test_uncertain_submit_recovers_without_duplicate(self):
         self.add_candidate(candidate());self.engine.fill_slots()
         a=self.engine.active()[0];self.store.update('attempts',a['id'],status='submitting',transfer_id=None)
