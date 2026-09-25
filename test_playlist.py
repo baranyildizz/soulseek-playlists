@@ -74,10 +74,10 @@ class PlaylistTests(unittest.TestCase):
 
     def test_disc_track_prefix_does_not_hide_exact_song(self):
         t=Track('Joss Moog','Secret Garden',1)
-        good=score_candidate(t,candidate(filename=r'VA - KM5 Ibiza\\1-11. Joss Moog - Secret Garden.flac'))
+        good=score_candidate(t,candidate(filename=r'VA - KM5 Ibiza\1-11. Joss Moog - Secret Garden.flac'))
         self.assertTrue(good.eligible)
         self.assertGreaterEqual(good.score,92)
-        wrong=score_candidate(t,candidate(filename=r'VA - KM5 Ibiza\\1-11. Joss Moog - Secret Garden (Remix).flac'))
+        wrong=score_candidate(t,candidate(filename=r'VA - KM5 Ibiza\1-11. Joss Moog - Secret Garden (Remix).flac'))
         self.assertFalse(wrong.eligible)
 
     def test_saved_candidate_is_rescored_and_queued_for_new_search(self):
