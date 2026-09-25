@@ -72,6 +72,14 @@ class PlaylistTests(unittest.TestCase):
         wrong=score_candidate(t,candidate(filename=r'VA-MOD010\08-solenoid-modular_brain_remix.flac'))
         self.assertFalse(wrong.eligible)
 
+    def test_disc_track_prefix_does_not_hide_exact_song(self):
+        t=Track('Joss Moog','Secret Garden',1)
+        good=score_candidate(t,candidate(filename=r'VA - KM5 Ibiza\\1-11. Joss Moog - Secret Garden.flac'))
+        self.assertTrue(good.eligible)
+        self.assertGreaterEqual(good.score,92)
+        wrong=score_candidate(t,candidate(filename=r'VA - KM5 Ibiza\\1-11. Joss Moog - Secret Garden (Remix).flac'))
+        self.assertFalse(wrong.eligible)
+
     def test_saved_candidate_is_rescored_and_queued_for_new_search(self):
         self.source.write_text('Solenoid - Modular Brain\n',encoding='utf-8')
         job=self.store.add_job(self.source,'artist_title')
@@ -79,7 +87,7 @@ class PlaylistTests(unittest.TestCase):
         c=candidate('scene',r'VA-MOD010\08-solenoid-modular_brain.flac')
         self.store.execute('INSERT INTO candidates VALUES(?,?,?,?,?,?,?,?)',
                            ('scene',track['id'],c.peer,c.filename,json.dumps(asdict(c)),89,0,time.time()))
-        self.store.update('tracks',track['id'],status='not_found',rounds=8,next_search=time.time()+7200)
+        self.store.update('tracks',track['id'],status='retry_wait',rounds=8,next_search=time.time()+7200)
         self.store.set_setting('scoring_revision','extended-remixer-1')
         Engine(self.store,{'slskd_url':'http://localhost:5030','slskd_download_dir':str(self.root/'incoming')},self.api,lambda p,s:None)
         updated=self.store.one('SELECT * FROM tracks WHERE id=?',(track['id'],))
