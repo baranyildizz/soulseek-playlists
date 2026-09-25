@@ -615,7 +615,7 @@ class Engine:
                 if c.peer.casefold() not in attempted: available.append(c)
             failed_peers={r['peer'].casefold():r['failures'] for r in self.s.rows(
                 "SELECT peer,COUNT(*) failures FROM attempts WHERE track=? AND status='failed' GROUP BY peer",(t['id'],))}
-            available.sort(key=lambda c:(c.extension=='flac',-failed_peers.get(c.peer.casefold(),0),
+            available.sort(key=lambda c:(-failed_peers.get(c.peer.casefold(),0),c.extension=='flac',
                                          c.free_upload_slot is True,-(c.queue_length or 0),c.upload_speed or 0,c.score),reverse=True)
             if not active and attempted and (not available or len(attempted)>=int(self.config.get('max_peer_attempts',3))):
                 detail='Uygun peer’ler denendi; yeni kaynak / yeniden deneme zamanı bekleniyor.'
