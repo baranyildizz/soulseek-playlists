@@ -24,7 +24,7 @@ from slskd_runtime import SlskdRuntime
 
 
 def norm(text):
-    text = unicodedata.normalize('NFKD', text).casefold()
+    text = unicodedata.normalize('NFKD', text.replace('_', ' ')).casefold()
     text = ''.join(c for c in text if not unicodedata.combining(c))
     text = re.sub(r"['’`‐‑]", '', text)
     return re.sub(r'[^\w]+', ' ', text).strip()
@@ -74,10 +74,10 @@ def comparable_title(text):
     return re.sub(r'\s+', ' ', re.sub(r'\bextended(?:\s+mix)?(?=\s+(?:remix|edit)\b|$)', '', text)).strip()
 
 
-def quality_allowed(c):
+def quality_allowed(c, manual=False):
     mb=c.size/1048576
     return ((c.extension=='flac' and 5<=mb<=500) or
-            (c.extension=='mp3' and (c.bitrate or 0)>=320 and 2<=mb<=80))
+            (c.extension=='mp3' and (c.bitrate is None and manual or (c.bitrate or 0)>=320) and 2<=mb<=80))
 
 
 def quality_label(data):
@@ -128,7 +128,9 @@ def score_candidate(track, c):
     if not artist_ok: reasons.append('Ana sanatçı doğrulanamadı')
     if not title_ok: reasons.append(f'Başlık eşleşmesi %{title_similarity:.0f}')
     if extra_versions or missing_versions: reasons.append('Sürüm farklı: ' + ', '.join(extra_versions + missing_versions))
-    if not quality: reasons.append('Yalnızca FLAC / MP3 320')
+    if not quality:
+        reasons.append('MP3 bitrate bilinmiyor; elle seçilirse indirildikten sonra doğrulanır'
+                       if c.extension=='mp3' and c.bitrate is None else 'Yalnızca FLAC / MP3 320')
     if not size_ok: reasons.append('Dosya boyutu şüpheli')
     c.reason = '; '.join(reasons) or ('Kimlik doğrulandı; FLAC kaynağı spektral olarak doğrulanmadı' if c.extension == 'flac' else 'Kimlik ve kalite doğrulandı')
     return c
@@ -138,14 +140,32 @@ def queries(track):
     artist = re.split(r',|\s+(?:feat\.?|ft\.?)\s+', track.artist, maxsplit=1, flags=re.I)[0]
     def search_text(value):
         value=re.sub(r'\s*[\[(](?:feat\.?|ft\.?|with|featuring)\s+.*?[\])]', '', value, flags=re.I)
-        value=unicodedata.normalize('NFKC',value).casefold().replace('’',"'")
+        value=unicodedata.normalize('NFKD',value.replace('_',' ')).casefold().replace('’',"'")
+        value=''.join(c for c in value if not unicodedata.combining(c))
         return re.sub(r'\s+',' ',re.sub(r"[^\w\s']",' ',value)).strip()
     title = search_text(track.title)
-    words = search_text(artist).split() + title.split()
+    core = re.split(r'\s+[-–—]\s+', track.title, maxsplit=1)[0]
+    if core == track.title and re.search(r'(?:\.{3}|…)$', core):
+        # A copied display label may end in an incomplete word.
+        core = re.sub(r'\s+\S+(?:\.{3}|…)$', '', core)
+    core = search_text(core) or title
+    artist_terms = search_text(artist)
+    words = artist_terms.split() + title.split()
     # Soulseek is token search; omit punctuation and very short words from first query.
     first = ' '.join(w for w in words if len(w) > 1)
-    result = [first, title]
+    focused = ' '.join(w for w in (artist_terms+' '+core).split() if len(w)>1)
+    # Keep title-only searches for distinctive titles; short names produce
+    # thousands of unrelated files and hide rare peers behind response limits.
+    result = [first, focused]
+    if len(title.split()) >= 3: result.append(title)
+    if truncated_input(track) and len(core.split()) >= 2: result.append(core)
+    if len(artist_terms.split()) >= 2: result.append(artist_terms)
     return list(dict.fromkeys(q for q in result if q))
+
+
+def truncated_input(track):
+    return any(len(value) > 10 and re.search(r'(?:\.{3}|…)$', value.strip())
+               for value in (track.artist,track.title))
 
 
 def digest(path):
@@ -320,14 +340,14 @@ class Engine:
         self.backfill_track_numbers()
 
     def rescore_saved(self):
-        if self.s.setting('scoring_revision')=='extended-remixer-1': return
+        if self.s.setting('scoring_revision')=='separator-normalization-2': return
         with self.s.db:
             for r in self.s.rows("SELECT c.*,t.artist,t.title,t.position FROM candidates c JOIN tracks t ON t.id=c.track WHERE t.status!='done'"):
                 c=score_candidate(Track(r['artist'],r['title'],r['position']),Candidate(**json.loads(r['data'])))
                 self.s.db.execute('UPDATE candidates SET data=?,score=?,eligible=? WHERE id=?',
                     (json.dumps(asdict(c),ensure_ascii=False),c.score,int(c.eligible),r['id']))
-            self.s.db.execute("UPDATE tracks SET status='ready',detail='Extended kabulü ile eşleşme yeniden doğrulandı' WHERE status IN ('review','not_found') AND id IN (SELECT track FROM candidates WHERE eligible=1 AND score>=?)",(float(self.config.get('auto_download_threshold',92)),))
-        self.s.set_setting('scoring_revision','extended-remixer-1')
+            self.s.db.execute("UPDATE tracks SET status='pending',rounds=0,variant=0,next_search=0,detail='Eşleşme düzeltildi; kaynak yeniden aranacak' WHERE status IN ('review','not_found') AND id IN (SELECT track FROM candidates WHERE eligible=1 AND score>=?)",(float(self.config.get('auto_download_threshold',92)),))
+        self.s.set_setting('scoring_revision','separator-normalization-2')
 
     def backfill_track_numbers(self):
         if self.s.setting('tracknumber_revision')=='playlist-position-1':return
@@ -414,7 +434,7 @@ class Engine:
             if self.active(t['id']):raise ValueError('Bu parçanın aktif transferi var; seçim için tamamlanmasını bekleyin.')
             job=self.s.one('SELECT * FROM jobs WHERE id=?',(t['job'],))
             if job['mode']=='preview' or job['status']=='cancelled': raise ValueError('Arama testi / iptal edilen iş için indirme seçilemez.')
-            if not quality_allowed(Candidate(**json.loads(r['data']))): raise ValueError('Seçim için makul boyutlu FLAC veya MP3 320 gerekir.')
+            if not quality_allowed(Candidate(**json.loads(r['data'])),manual=True): raise ValueError('Seçim için makul boyutlu FLAC veya MP3 gerekir; MP3 kalite indirme sonrası doğrulanır.')
             with self.s.db:
                 self.s.db.execute('INSERT OR REPLACE INTO approvals VALUES(?,?,?)',(t['id'],r['id'],time.time()))
                 self.s.db.execute('DELETE FROM track_choices WHERE track=?',(t['id'],))
@@ -527,13 +547,20 @@ class Engine:
             variant = t['variant']+1
             full_round = bool(good) or variant >= len(queries(track))
             active = self.active(t['id'])
-            state = 'waiting' if active else ('ready' if good else 'review' if candidates else 'not_found')
+            prior_good=self.s.one('SELECT id FROM candidates WHERE track=? AND eligible=1 AND score>=? LIMIT 1',
+                                  (t['id'],float(self.config.get('auto_download_threshold',92))))
+            prior_attempt=self.s.one('SELECT id FROM attempts WHERE track=? LIMIT 1',(t['id'],))
+            reviewable=any(c.score>=float(self.config.get('review_threshold',75)) for c in candidates)
+            state = ('waiting' if active else 'ready' if good else
+                     'retry_wait' if prior_good and prior_attempt else
+                     'review' if reviewable else 'not_found')
             if t['status']=='done': state='done'
             held=self.s.one('SELECT choice FROM track_choices WHERE track=?',(t['id'],))
             if held:state=held['choice']
             if self.s.one('SELECT track FROM approvals WHERE track=?',(t['id'],)) and t['status']!='done': state='waiting' if active else 'ready'
             delay = min(7200, 900 * (2**min(t['rounds'],3))) if full_round else 0
             detail = f'{len(candidates)} aday · {len(good)} güvenli eşleşme'
+            if truncated_input(track): detail += ' · TXT adı kesilmiş görünüyor; tam adla yeniden ekleyin veya adayı elle seçin'
             self.s.update('tracks',t['id'],search_id=None,search_deadline=0,status=state,detail=detail,
                           variant=0 if full_round else variant,rounds=t['rounds']+int(full_round),next_search=time.time()+delay)
             self.s.event(t['job'],f"{track.artist} — {track.title}: {detail}")
@@ -584,9 +611,12 @@ class Engine:
                   self.s.rows('SELECT * FROM candidates WHERE track=? AND eligible=1 AND score>=? AND created>?',(t['id'],float(self.config.get('auto_download_threshold',92)),time.time()-86400)))
             for r in rows:
                 c = Candidate(**json.loads(r['data']))
-                if approval and not quality_allowed(c): continue
+                if approval and not quality_allowed(c,manual=True): continue
                 if c.peer.casefold() not in attempted: available.append(c)
-            available.sort(key=lambda c:(c.extension=='flac',c.free_upload_slot is True,-(c.queue_length or 0),c.upload_speed or 0,c.score),reverse=True)
+            failed_peers={r['peer'].casefold():r['failures'] for r in self.s.rows(
+                "SELECT peer,COUNT(*) failures FROM attempts WHERE track=? AND status='failed' GROUP BY peer",(t['id'],))}
+            available.sort(key=lambda c:(c.extension=='flac',-failed_peers.get(c.peer.casefold(),0),
+                                         c.free_upload_slot is True,-(c.queue_length or 0),c.upload_speed or 0,c.score),reverse=True)
             if not active and attempted and (not available or len(attempted)>=int(self.config.get('max_peer_attempts',3))):
                 detail='Uygun peer’ler denendi; yeni kaynak / yeniden deneme zamanı bekleniyor.'
                 if t['status']!='retry_wait' or t['detail']!=detail:
