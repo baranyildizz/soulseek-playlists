@@ -17,6 +17,8 @@ Windows paketini GitHub Releases bölümünden indirin. ZIP'i açın; `Soulseek 
 
 [Windows için indir — v0.1.0-beta.1 (ZIP)](https://github.com/baranyildizz/soulseek-playlists/releases/download/v0.1.0-beta.1/Soulseek-Playlists-Windows.zip)
 
+Not: Bu ZIP, 25 Eylül'deki eksik şarkı arama düzeltmelerinden önce üretilmiştir. Güncel düzeltmeler kaynak kodundadır; yeni Windows paketi henüz yayımlanmadı.
+
 Bu beta sürüm kod imzası taşımaz; Windows güvenlik uyarısı gösterebilir. İlk denemeyi 1–3 parçalık, indirme hakkınız olan bir listeyle yapın.
 
 Bu repoda kişisel ayarlar, hesap bilgileri, müzik dosyaları, playlistler ve indirme geçmişi bulunmaz. 
