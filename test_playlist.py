@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from dataclasses import asdict
 from pathlib import Path
 
-from playlist_core import Store, Engine, Candidate, Track, score_candidate, parse_tracks, digest, queries, audio_metadata, write_track_number
+from playlist_core import Store, Engine, Candidate, Track, score_candidate, parse_tracks, digest, queries, audio_metadata, write_track_number, quality_allowed, truncated_input
 
 
 def candidate(peer='alpha', filename=r'Prospa\Album\01 - Don’t Stop.flac'):
@@ -64,6 +64,29 @@ class PlaylistTests(unittest.TestCase):
         for name in ['Other Artist Extended Remix','Extended Mix','Franky Rizardo Live Remix']:
             self.assertFalse(score_candidate(t,candidate(filename='Borai & Denham Audio - Make Me ('+name+').flac')).eligible)
 
+    def test_scene_underscores_do_not_hide_exact_flac(self):
+        t=Track('Solenoid','Modular Brain',1)
+        result=score_candidate(t,candidate(filename=r'VA-MOD010\08-solenoid-modular_brain.flac'))
+        self.assertTrue(result.eligible)
+        self.assertGreaterEqual(result.score,92)
+        wrong=score_candidate(t,candidate(filename=r'VA-MOD010\08-solenoid-modular_brain_remix.flac'))
+        self.assertFalse(wrong.eligible)
+
+    def test_saved_candidate_is_rescored_and_queued_for_new_search(self):
+        self.source.write_text('Solenoid - Modular Brain\n',encoding='utf-8')
+        job=self.store.add_job(self.source,'artist_title')
+        track=self.store.one('SELECT * FROM tracks WHERE job=?',(job,))
+        c=candidate('scene',r'VA-MOD010\08-solenoid-modular_brain.flac')
+        self.store.execute('INSERT INTO candidates VALUES(?,?,?,?,?,?,?,?)',
+                           ('scene',track['id'],c.peer,c.filename,json.dumps(asdict(c)),89,0,time.time()))
+        self.store.update('tracks',track['id'],status='not_found',rounds=8,next_search=time.time()+7200)
+        self.store.set_setting('scoring_revision','extended-remixer-1')
+        Engine(self.store,{'slskd_url':'http://localhost:5030','slskd_download_dir':str(self.root/'incoming')},self.api,lambda p,s:None)
+        updated=self.store.one('SELECT * FROM tracks WHERE id=?',(track['id'],))
+        self.assertEqual(updated['status'],'pending')
+        self.assertEqual(updated['rounds'],0)
+        self.assertTrue(self.store.one('SELECT eligible FROM candidates WHERE id=?',('scene',))['eligible'])
+
     def test_manual_selection_persists_and_only_queues_selected(self):
         c=candidate('chosen');c.eligible=False;c.score=80
         self.add_candidate(c)
@@ -87,6 +110,17 @@ class PlaylistTests(unittest.TestCase):
         self.engine.command('approve',{'track':self.track['id'],'candidate':'alpha'})
         self.engine.fill_slots();self.assertEqual(self.api.queues,0)
         self.engine.command('start',self.job);self.engine.fill_slots();self.assertEqual(self.api.queues,1)
+
+    def test_unknown_mp3_bitrate_requires_manual_choice(self):
+        c=candidate(filename=r'Prospa\Don’t Stop.mp3');c.extension='mp3';c.bitrate=None;c.size=8*1048576
+        self.assertFalse(quality_allowed(c))
+        self.assertTrue(quality_allowed(c,manual=True))
+        scored=score_candidate(Track('Prospa','Don’t Stop',1),c)
+        self.assertFalse(scored.eligible)
+        self.add_candidate(scored)
+        self.engine.command('approve',{'track':self.track['id'],'candidate':'alpha'})
+        self.engine.fill_slots()
+        self.assertEqual(self.api.queues,1)
 
     def test_skip_and_defer_persist_and_block_automatic_work(self):
         self.add_candidate(candidate())
@@ -124,6 +158,15 @@ class PlaylistTests(unittest.TestCase):
     def test_search_preserves_apostrophe(self):
         self.assertEqual(queries(Track('Prospa','Don’t Stop',1))[0],"prospa don't stop")
 
+    def test_search_broadens_truncated_display_title_safely(self):
+        q=queries(Track('Saison, Miss Yankey','Making Shapes - Scott Dia...',1))
+        self.assertTrue(q[0].startswith('saison making shapes scott dia'))
+        self.assertIn('saison making shapes',q)
+        self.assertIn('making shapes',q)
+        self.assertIn('makez city of all',queries(Track('Makèz','City of All - Edit',1)))
+        self.assertTrue(truncated_input(Track('Saison','Making Shapes - Scott Dia...',1)))
+        self.assertFalse(truncated_input(Track('Devoye','Ok...',1)))
+
     def test_numbering_does_not_flip_artist(self):
         self.source.write_text('01. Prospa – Don’t Stop\n# comment\n',encoding='utf-8')
         self.assertEqual(parse_tracks(self.source)[0].artist,'Prospa')
@@ -148,6 +191,13 @@ class PlaylistTests(unittest.TestCase):
         self.api.transfers[a['transfer_id']]['state']='Completed, Errored'
         self.engine.poll_transfers();self.engine.fill_slots()
         self.assertEqual(self.api.queues,3);self.assertEqual(len(self.engine.active()),2)
+
+    def test_old_failed_peer_is_deprioritized(self):
+        for peer in ['alpha','beta','gamma']:self.add_candidate(candidate(peer))
+        self.store.execute('INSERT INTO attempts(id,track,peer,filename,size,data,status,stage,created) VALUES(?,?,?,?,?,?,?,?,?)',
+            ('old',self.track['id'],'alpha',r'Prospa\Album\01 - Don’t Stop.flac',8*1048576,'{}','failed','',time.time()-90000))
+        self.engine.fill_slots()
+        self.assertEqual({a['peer'] for a in self.engine.active()},{'beta','gamma'})
 
     def test_uncertain_submit_recovers_without_duplicate(self):
         self.add_candidate(candidate());self.engine.fill_slots()
