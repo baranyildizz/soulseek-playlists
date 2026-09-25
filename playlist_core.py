@@ -92,7 +92,8 @@ def quality_label(data):
 def score_candidate(track, c):
     """Identity gates are independent of quality and availability bonuses."""
     parts = PureWindowsPath(c.filename.replace('/', '\\')).parts
-    stem = re.sub(r'^\s*\d{1,3}(?:[-. ]+)', '', PureWindowsPath(parts[-1]).stem)
+    # Disc-track prefixes such as "1-11. Artist - Title" are common on CD rips.
+    stem = re.sub(r'^\s*(?:\d{1,2}\s*[-._]\s*)?\d{1,3}(?:[-. ]+)', '', PureWindowsPath(parts[-1]).stem)
     stem_n = identity_title(stem)
     # Do not split '&': Oden & Fatzo and Borai & Denham Audio are artist identities.
     lead = norm(re.split(r',|\s+(?:feat\.?|ft\.?|featuring)\s+', track.artist, maxsplit=1, flags=re.I)[0])
@@ -340,14 +341,14 @@ class Engine:
         self.backfill_track_numbers()
 
     def rescore_saved(self):
-        if self.s.setting('scoring_revision')=='separator-normalization-2': return
+        if self.s.setting('scoring_revision')=='track-prefix-4': return
         with self.s.db:
             for r in self.s.rows("SELECT c.*,t.artist,t.title,t.position FROM candidates c JOIN tracks t ON t.id=c.track WHERE t.status!='done'"):
                 c=score_candidate(Track(r['artist'],r['title'],r['position']),Candidate(**json.loads(r['data'])))
                 self.s.db.execute('UPDATE candidates SET data=?,score=?,eligible=? WHERE id=?',
                     (json.dumps(asdict(c),ensure_ascii=False),c.score,int(c.eligible),r['id']))
-            self.s.db.execute("UPDATE tracks SET status='pending',rounds=0,variant=0,next_search=0,detail='Eşleşme düzeltildi; kaynak yeniden aranacak' WHERE status IN ('review','not_found') AND id IN (SELECT track FROM candidates WHERE eligible=1 AND score>=?)",(float(self.config.get('auto_download_threshold',92)),))
-        self.s.set_setting('scoring_revision','separator-normalization-2')
+            self.s.db.execute("UPDATE tracks SET status='pending',rounds=0,variant=0,next_search=0,detail='Eşleşme düzeltildi; kaynak yeniden aranacak' WHERE status IN ('review','not_found','retry_wait') AND id IN (SELECT track FROM candidates WHERE eligible=1 AND score>=?)",(float(self.config.get('auto_download_threshold',92)),))
+        self.s.set_setting('scoring_revision','track-prefix-4')
 
     def backfill_track_numbers(self):
         if self.s.setting('tracknumber_revision')=='playlist-position-1':return
