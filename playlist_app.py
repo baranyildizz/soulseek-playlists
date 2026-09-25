@@ -614,7 +614,7 @@ class ReviewDialog(QDialog):
 
     def selection_changed(self):
         row=self.table.currentRow();allowed=False
-        if 0<=row<len(self.rows):allowed=quality_allowed(Candidate(**json.loads(self.rows[row]['data'])))
+        if 0<=row<len(self.rows):allowed=quality_allowed(Candidate(**json.loads(self.rows[row]['data'])),manual=True)
         tid=self.tracks.currentData();track=next((t for t in self.window.data.get('tracks',[]) if t['id']==tid),None)
         job=next((j for j in self.window.data.get('jobs',[]) if track and j['id']==track['job']),None)
         active=any(a['track']==tid and a['status'] in ('queued','downloading','finishing','submitting') for a in self.window.data.get('attempts',[]))
@@ -624,7 +624,7 @@ class ReviewDialog(QDialog):
         self.note.setText('İşlem kaydediliyor…' if self.pending else
             'Aktif transfer izleniyor; dosya tamamlanınca yeniden seçebilirsiniz.' if active else
             'Aday yok. Yeniden arayabilir, Pass diyebilir veya sonraya bırakabilirsiniz.' if not self.rows else
-            'Seçiminiz kaydedilir. FLAC / MP3 320, dosya kontrolü ve peer bekleme süreleri uygulanır; duraklatılmış işi sürdürmeniz gerekir.')
+            'Seçiminiz kaydedilir. Bitrate bilgisi olmayan MP3 indirildikten sonra kontrol edilir; düşük kalite tamamlanmış sayılmaz. Duraklatılmış işi sürdürmeniz gerekir.')
 
     def approve(self):
         row=self.table.currentRow()
