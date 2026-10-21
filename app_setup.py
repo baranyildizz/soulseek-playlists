@@ -1,6 +1,7 @@
 """Portable application binaries, persistent per-user settings, one-time setup."""
 from __future__ import annotations
 
+from i18n import LANGUAGES, tr
 import json
 import os
 import sys
@@ -31,6 +32,7 @@ def defaults(root):
         'slskd_download_dir': str(local / 'downloads'),
         'gui_playlist_output_dir': str(Path.home() / 'Music' / 'Soulseek Playlists'),
         'auto_start_slskd': True, 'prompt_for_web_credentials': False,
+        'language': 'auto',
         # Search, peer and quality tuning defaults live in engine.DEFAULTS.
     }
     if config['slskd_config_path']:
@@ -78,7 +80,7 @@ def load_settings(root):
     if path.exists():
         config = json.loads(path.read_text(encoding='utf-8'))
         if not isinstance(config, dict) or not isinstance(config.get('slskd_url'), str):
-            raise ValueError('Geçersiz yapılandırma')
+            raise ValueError(tr('Geçersiz yapılandırma'))
         # Preserve the historical GUI output folder; the legacy CLI uses a different key.
         config.setdefault('gui_playlist_output_dir', str(Path(root) / 'Playlists'))
         return config
@@ -114,14 +116,14 @@ class ConnectionCheck(QThread):
         try:
             ready, message = SlskdRuntime(self.config).prepare()
             if not ready:
-                self.result.emit(message + ' · Biraz sonra yeniden kontrol edin.')
+                self.result.emit(message + tr(' · Biraz sonra yeniden kontrol edin.'))
                 return
             api = SlskdApi(dict(self.config, prompt_for_web_credentials=False))
             api.authenticate()
-            self.result.emit('API hazır · Soulseek bağlı' if api.server_connected(api.server())
-                             else 'API hazır · Soulseek bağlantısı henüz kurulmadı')
+            self.result.emit(tr('API hazır · Soulseek bağlı') if api.server_connected(api.server())
+                             else tr('API hazır · Soulseek bağlantısı henüz kurulmadı'))
         except Exception:
-            self.result.emit('Bağlantı kurulamadı. Adresi ve slskd web erişim ayarlarını kontrol edin.')
+            self.result.emit(tr('Bağlantı kurulamadı. Adresi ve slskd web erişim ayarlarını kontrol edin.'))
         finally:
             if api is not None:
                 api.session.close()
@@ -136,24 +138,24 @@ class SetupDialog(QDialog):
             self.config['slskd_executable'] = defaults(root)['slskd_executable']
         config = self.config
         self.check = None
-        self.setWindowTitle('Soulseek Playlists · Ayarlar')
+        self.setWindowTitle(tr('Soulseek Playlists · Ayarlar'))
         self.resize(760, 760)
         layout = QVBoxLayout(self)
-        intro = QLabel('Bir kez ayarlayın, sonraki açılışlarda hatırlansın.\n'
-                       'slskd kendi Soulseek hesabınızla kurulmuş olmalı. Mevcut ayar dosyası değiştirilmez.')
+        intro = QLabel(tr('Bir kez ayarlayın, sonraki açılışlarda hatırlansın.\n'
+                          'slskd kendi Soulseek hesabınızla kurulmuş olmalı. Mevcut ayar dosyası değiştirilmez.'))
         intro.setWordWrap(True)
         layout.addWidget(intro)
-        link = QLabel('<a href="https://github.com/slskd/slskd/releases">slskd indirme sayfası</a>')
+        link = QLabel(tr('<a href="https://github.com/slskd/slskd/releases">slskd indirme sayfası</a>'))
         link.setOpenExternalLinks(True)
         layout.addWidget(link)
         self.fields = {}
         for key, label, kind in [
-            ('slskd_url', 'slskd adresi', None),
-            ('slskd_executable', 'slskd.exe (otomatik başlatmak için)', 'exe'),
-            ('slskd_config_path', 'slskd.yml (kayıtlı web erişim ayarları)', 'yaml'),
-            ('slskd_listen_port', 'Soulseek giriş portu (isteğe bağlı; boş: slskd ayarı)', None),
-            ('slskd_download_dir', 'slskd tamamlanan indirmeler klasörü', 'folder'),
-            ('gui_playlist_output_dir', 'Playlistlerin kaydedileceği klasör', 'folder'),
+            ('slskd_url', tr('slskd adresi'), None),
+            ('slskd_executable', tr('slskd.exe (otomatik başlatmak için)'), 'exe'),
+            ('slskd_config_path', tr('slskd.yml (kayıtlı web erişim ayarları)'), 'yaml'),
+            ('slskd_listen_port', tr('Soulseek giriş portu (isteğe bağlı; boş: slskd ayarı)'), None),
+            ('slskd_download_dir', tr('slskd tamamlanan indirmeler klasörü'), 'folder'),
+            ('gui_playlist_output_dir', tr('Playlistlerin kaydedileceği klasör'), 'folder'),
         ]:
             layout.addWidget(QLabel(label))
             row = QHBoxLayout()
@@ -161,25 +163,25 @@ class SetupDialog(QDialog):
             self.fields[key] = field
             row.addWidget(field)
             if kind:
-                button = QPushButton('Seç…')
+                button = QPushButton(tr('Seç…'))
                 button.clicked.connect(lambda checked=False, k=key, t=kind: self.browse(k, t))
                 row.addWidget(button)
             layout.addLayout(row)
         layout.addWidget(self.options_section(config))
-        note = QLabel('Parola bu uygulamada saklanmaz. Web erişimi seçtiğiniz slskd.yml dosyasından '
-                      'veya SLSKD_API_KEY / SLSKD_WEB_USERNAME / SLSKD_WEB_PASSWORD ortam değişkenlerinden okunur.\n'
-                      'Klasör değişikliği yalnızca yeni playlistler için geçerlidir.')
+        note = QLabel(tr('Parola bu uygulamada saklanmaz. Web erişimi seçtiğiniz slskd.yml dosyasından '
+                         'veya SLSKD_API_KEY / SLSKD_WEB_USERNAME / SLSKD_WEB_PASSWORD ortam değişkenlerinden okunur.\n'
+                         'Klasör değişikliği yalnızca yeni playlistler için geçerlidir.'))
         note.setWordWrap(True)
         layout.addWidget(note)
         self.status = QLabel('')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        self.test_button = QPushButton('Bağlantıyı kontrol et')
+        self.test_button = QPushButton(tr('Bağlantıyı kontrol et'))
         self.test_button.clicked.connect(self.test_connection)
         layout.addWidget(self.test_button)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        self.buttons.button(QDialogButtonBox.StandardButton.Save).setText('Kaydet')
-        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText('Vazgeç')
+        self.buttons.button(QDialogButtonBox.StandardButton.Save).setText(tr('Kaydet'))
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr('Vazgeç'))
         self.buttons.accepted.connect(self.save)
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
@@ -190,43 +192,48 @@ class SetupDialog(QDialog):
         form = QFormLayout(frame)
         form.setContentsMargins(0, 8, 0, 0)
         ffmpeg = bool(find_ffmpeg(str(config.get('ffmpeg_path') or '')))
+        self.language = QComboBox()
+        for code, label in LANGUAGES.items():
+            self.language.addItem(label, code)
+        self.language.setCurrentIndex(max(0, self.language.findData(config.get('language', 'auto'))))
+        form.addRow('Dil / Language', self.language)      # readable whichever language is active
         self.output_format = QComboBox()
-        self.output_format.addItem('Orijinal format (FLAC / MP3 / AIFF / WAV)', 'original')
-        self.output_format.addItem('FLAC ve WAV’ı AIFF’e çevir (rekordbox / CDJ)', 'aiff')
+        self.output_format.addItem(tr('Orijinal format (FLAC / MP3 / AIFF / WAV)'), 'original')
+        self.output_format.addItem(tr('FLAC ve WAV’ı AIFF’e çevir (rekordbox / CDJ)'), 'aiff')
         self.output_format.setCurrentIndex(max(0, self.output_format.findData(config.get('output_format', 'original'))))
         self.output_format.setEnabled(ffmpeg)
-        form.addRow('Dosya formatı', self.output_format)
+        form.addRow(tr('Dosya formatı'), self.output_format)
         self.filename_template = QComboBox()
-        self.filename_template.addItem('Peer’deki dosya adı', 'original')
-        self.filename_template.addItem('Sanatçı - Şarkı (listedeki adla)', 'artist_title')
+        self.filename_template.addItem(tr('Peer’deki dosya adı'), 'original')
+        self.filename_template.addItem(tr('Sanatçı - Şarkı (listedeki adla)'), 'artist_title')
         self.filename_template.setCurrentIndex(max(0, self.filename_template.findData(config.get('filename_template', 'original'))))
-        form.addRow('Dosya adı', self.filename_template)
-        self.check_fake = QCheckBox('İnen FLAC/MP3’ün spektrumunu kontrol et (sahte kaliteyi ele)')
+        form.addRow(tr('Dosya adı'), self.filename_template)
+        self.check_fake = QCheckBox(tr('İnen FLAC/MP3’ün spektrumunu kontrol et (sahte kaliteyi ele)'))
         self.check_fake.setChecked(bool(config.get('check_fake_lossless', True)) and ffmpeg)
         self.check_fake.setEnabled(ffmpeg)
         form.addRow('', self.check_fake)
-        self.rekordbox = QCheckBox('Her playlist için rekordbox XML dosyası yaz')
+        self.rekordbox = QCheckBox(tr('Her playlist için rekordbox XML dosyası yaz'))
         self.rekordbox.setChecked(bool(config.get('rekordbox_xml', True)))
         form.addRow('', self.rekordbox)
         library = config.get('library_dirs') or []
         self.library = QLineEdit('; '.join(library) if isinstance(library, list) else str(library))
-        self.library.setPlaceholderText('Örn. D:\\Müzik; E:\\DJ — eşleşen dosya indirilmez, kopyalanır')
+        self.library.setPlaceholderText(tr('Örn. D:\\Müzik; E:\\DJ — eşleşen dosya indirilmez, kopyalanır'))
         row = QHBoxLayout()
         row.addWidget(self.library)
-        add = QPushButton('Ekle…')
+        add = QPushButton(tr('Ekle…'))
         add.clicked.connect(self.add_library)
         row.addWidget(add)
-        form.addRow('Kütüphane klasörleri', row)
-        self.autostart = QCheckBox('Windows açılışında tepside başlat')
+        form.addRow(tr('Kütüphane klasörleri'), row)
+        self.autostart = QCheckBox(tr('Windows açılışında tepside başlat'))
         self.autostart.setChecked(startup_script().is_file())
         form.addRow('', self.autostart)
         if not ffmpeg:
-            form.addRow('', QLabel('ffmpeg bulunamadı: AIFF dönüşümü ve spektrum kontrolü kapalı. '
-                                   '(winget install Gyan.FFmpeg)'))
+            form.addRow('', QLabel(tr('ffmpeg bulunamadı: AIFF dönüşümü ve spektrum kontrolü kapalı. '
+                                      '(winget install Gyan.FFmpeg)')))
         return frame
 
     def add_library(self):
-        folder = QFileDialog.getExistingDirectory(self, 'Müzik klasörü seç')
+        folder = QFileDialog.getExistingDirectory(self, tr('Müzik klasörü seç'))
         if folder:
             current = [p.strip() for p in self.library.text().split(';') if p.strip()]
             if folder not in current:
@@ -236,9 +243,9 @@ class SetupDialog(QDialog):
     def browse(self, key, kind):
         current = self.fields[key].text()
         if kind == 'folder':
-            selected = QFileDialog.getExistingDirectory(self, 'Klasör seç', current)
+            selected = QFileDialog.getExistingDirectory(self, tr('Klasör seç'), current)
         else:
-            selected, _ = QFileDialog.getOpenFileName(self, 'Dosya seç', current,
+            selected, _ = QFileDialog.getOpenFileName(self, tr('Dosya seç'), current,
                 'slskd (slskd.exe)' if kind == 'exe' else 'YAML (*.yml *.yaml)')
         if selected:
             self.fields[key].setText(selected)
@@ -253,16 +260,16 @@ class SetupDialog(QDialog):
         config.update({key: field.text().strip() for key, field in self.fields.items()})
         url = urlsplit(config['slskd_url'])
         if url.port is not None and not 1 <= url.port <= 65535:
-            raise ValueError('Geçerli bir port girin.')
+            raise ValueError(tr('Geçerli bir port girin.'))
         if url.scheme not in ('http', 'https') or not url.hostname or url.username or url.password or url.query or url.fragment:
-            raise ValueError('Geçerli bir HTTP(S) adresi girin; adrese parola veya erişim anahtarı eklemeyin.')
+            raise ValueError(tr('Geçerli bir HTTP(S) adresi girin; adrese parola veya erişim anahtarı eklemeyin.'))
         for key in ('slskd_executable', 'slskd_config_path'):
             value = os.path.expandvars(config[key])
             if value and (not Path(value).is_absolute() or not Path(value).is_file()):
-                raise ValueError('Seçilen slskd dosyası bulunamadı. Dosya yolunu kontrol edin.')
+                raise ValueError(tr('Seçilen slskd dosyası bulunamadı. Dosya yolunu kontrol edin.'))
         for key in ('slskd_download_dir', 'gui_playlist_output_dir'):
             if not config[key] or not Path(os.path.expandvars(config[key])).is_absolute():
-                raise ValueError('İndirme ve playlist klasörleri için tam bir klasör yolu seçin.')
+                raise ValueError(tr('İndirme ve playlist klasörleri için tam bir klasör yolu seçin.'))
         config['setup_complete'] = True
         port = config.get('slskd_listen_port', '')
         if port:
@@ -270,7 +277,7 @@ class SetupDialog(QDialog):
                 port = int(port)
                 if not 1 <= port <= 65535:raise ValueError
             except (TypeError,ValueError):
-                raise ValueError('Soulseek giriş portu 1–65535 arasında olmalı.')
+                raise ValueError(tr('Soulseek giriş portu 1–65535 arasında olmalı.'))
             config['slskd_listen_port'] = port
         else:
             config.pop('slskd_listen_port', None)
@@ -280,9 +287,10 @@ class SetupDialog(QDialog):
         config['filename_template'] = self.filename_template.currentData()
         config['check_fake_lossless'] = self.check_fake.isChecked()
         config['rekordbox_xml'] = self.rekordbox.isChecked()
+        config['language'] = self.language.currentData()
         folders = [p.strip() for p in self.library.text().split(';') if p.strip()]
         if any(not Path(p).is_dir() for p in folders):
-            raise ValueError('Kütüphane klasörlerinden biri bulunamadı.')
+            raise ValueError(tr('Kütüphane klasörlerinden biri bulunamadı.'))
         config['library_dirs'] = folders
         return config
 
@@ -296,7 +304,7 @@ class SetupDialog(QDialog):
             self.status.setText(str(exc))
             return
         except OSError:
-            self.status.setText('Ayarlar kaydedilemedi. Dosya yollarını, adresi ve klasör yazma iznini kontrol edin.')
+            self.status.setText(tr('Ayarlar kaydedilemedi. Dosya yollarını, adresi ve klasör yazma iznini kontrol edin.'))
             return
         self.config = config
         self.accept()
@@ -309,7 +317,7 @@ class SetupDialog(QDialog):
             return
         self.test_button.setEnabled(False)
         self.buttons.setEnabled(False)
-        self.status.setText('Bağlantı kontrol ediliyor…')
+        self.status.setText(tr('Bağlantı kontrol ediliyor…'))
         self.check = ConnectionCheck(config, self)
         self.check.result.connect(self.status.setText)
         self.check.finished.connect(lambda: self.test_button.setEnabled(True))

@@ -1,6 +1,7 @@
 """Soulseek Playlists — native Windows UI, no browser/server required."""
 from __future__ import annotations
 
+from i18n import note_text, set_language, tr
 import ctypes
 import html
 import json
@@ -135,39 +136,39 @@ def theme_style(dark):
 def human_wait(seconds):
     seconds = max(0, int(seconds))
     if seconds >= 3600:
-        return f'{seconds // 3600} sa {seconds % 3600 // 60} dk'
+        return tr('{h} sa {m} dk').format(h=seconds // 3600, m=seconds % 3600 // 60)
     if seconds >= 60:
-        return f'{seconds // 60} dk'
-    return f'{seconds} sn'
+        return tr('{m} dk').format(m=seconds // 60)
+    return tr('{s} sn').format(s=seconds)
 
 
 def status_view(t, attempts, now):
     """(color key, human text) for a track row."""
     s = t['status']
     if t.get('search_id'):
-        return 'searching', 'Aranıyor…'
+        return 'searching', tr('Aranıyor…')
     if t.get('upgrade') and s in ('pending', 'not_found', 'retry_wait', 'review', 'ready'):
-        return 'searching', 'Daha iyisi aranıyor'
+        return 'searching', tr('Daha iyisi aranıyor')
     if s == 'done':
-        return 'done', 'Tamamlandı'
+        return 'done', tr('Tamamlandı')
     if s == 'downloading':
         percent = max((a['bytes'] * 100 / max(1, a['size']) for a in attempts), default=0)
-        return 'downloading', f'İniyor · %{percent:.0f}'
+        return 'downloading', tr('İniyor · %{percent}').format(percent=f'{percent:.0f}')
     if s == 'waiting':
-        return 'waiting', 'Peer kuyruğunda'
+        return 'waiting', tr('Peer kuyruğunda')
     if s == 'ready':
-        return 'ready', 'Kaynak bulundu'
+        return 'ready', tr('Kaynak bulundu')
     if s == 'review':
-        return 'review', 'Seçim bekliyor'
+        return 'review', tr('Seçim bekliyor')
     if s == 'deferred':
-        return 'deferred', 'Sonraya bırakıldı'
+        return 'deferred', tr('Sonraya bırakıldı')
     if s == 'skipped':
-        return 'other', 'Atlandı'
+        return 'other', tr('Atlandı')
     wait = (t.get('next_search') or 0) - now
     if s == 'pending':
-        return 'other', 'Sırada' if wait <= 0 else f'Sırada · {human_wait(wait)}'
-    label = 'Bulunamadı' if s == 'not_found' else 'Yeni kaynak aranacak'
-    return 'other', label + (f' · {human_wait(wait)} sonra' if wait > 0 else '')
+        return 'other', tr('Sırada') if wait <= 0 else tr('Sırada · {wait}').format(wait=human_wait(wait))
+    label = tr('Bulunamadı') if s == 'not_found' else tr('Yeni kaynak aranacak')
+    return 'other', label + (tr(' · {wait} sonra').format(wait=human_wait(wait)) if wait > 0 else '')
 
 
 _DOTS = {}
@@ -333,12 +334,12 @@ class Worker(QThread):
                     try:
                         engine.command(action, payload)
                     except Exception as e:
-                        self.notice.emit(str(e) if isinstance(e, ValueError) else 'İşlem yapılamadı; dosya erişimini kontrol edin.')
+                        self.notice.emit(str(e) if isinstance(e, ValueError) else tr('İşlem yapılamadı; dosya erişimini kontrol edin.'))
                 try:
                     engine.tick()
                 except Exception as e:
                     # Do not expose raw credential-bearing server bodies or tracebacks.
-                    store.set_setting('connection', 'İşlem hatası: ' + type(e).__name__ + ' · işler korunuyor')
+                    store.set_setting('connection', tr('İşlem hatası: {name} · işler korunuyor').format(name=type(e).__name__))
                     self.msleep(2000)
                 if time.time() - last > 1:
                     data = store.snapshot()
@@ -356,42 +357,42 @@ class ImportDialog(QDialog):
         super().__init__(parent)
         self.path = Path(path)
         self.is_csv = self.path.suffix.lower() == '.csv'
-        self.setWindowTitle('Playlist ekle')
+        self.setWindowTitle(tr('Playlist ekle'))
         self.resize(720, 520)
         box = QVBoxLayout(self)
         form = QFormLayout()
         self.name = QLineEdit(name or self.path.stem)
-        form.addRow('Playlist adı', self.name)
+        form.addRow(tr('Playlist adı'), self.name)
         self.layout_choice = QComboBox()
         if self.is_csv:
-            self.layout_choice.addItem('CSV sütunları (başlıktan okunur)', 'csv')
+            self.layout_choice.addItem(tr('CSV sütunları (başlıktan okunur)'), 'csv')
         else:
-            self.layout_choice.addItem('Sanatçı - Şarkı', 'artist_title')
-            self.layout_choice.addItem('Şarkı - Sanatçı', 'title_artist')
+            self.layout_choice.addItem(tr('Sanatçı - Şarkı'), 'artist_title')
+            self.layout_choice.addItem(tr('Şarkı - Sanatçı'), 'title_artist')
             try:
                 detected = detect_layout(self.path)
             except (OSError, ValueError):
                 detected = 'artist_title'
             index = self.layout_choice.findData(detected)
-            self.layout_choice.setItemText(index, self.layout_choice.itemText(index) + '  (otomatik algılandı)')
+            self.layout_choice.setItemText(index, self.layout_choice.itemText(index) + tr('  (otomatik algılandı)'))
             self.layout_choice.setCurrentIndex(index)
-        form.addRow('Sütun sırası', self.layout_choice)
+        form.addRow(tr('Sütun sırası'), self.layout_choice)
         box.addLayout(form)
         self.preview = QTableWidget(0, 3)
-        self.preview.setHorizontalHeaderLabels(['Sanatçı', 'Şarkı', 'Süre'])
+        self.preview.setHorizontalHeaderLabels([tr('Sanatçı'), tr('Şarkı'), tr('Süre')])
         self.preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.preview.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.preview.verticalHeader().hide()
         box.addWidget(self.preview)
-        self.search_only = QCheckBox('Önce yalnızca ara — hiçbir dosya indirme (sonuçları görmek için)')
+        self.search_only = QCheckBox(tr('Önce yalnızca ara — hiçbir dosya indirme (sonuçları görmek için)'))
         box.addWidget(self.search_only)
         self.summary = QLabel()
         self.summary.setWordWrap(True)
         box.addWidget(self.summary)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText('Playlist oluştur')
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText('Vazgeç')
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr('Playlist oluştur'))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr('Vazgeç'))
         self.ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -411,11 +412,13 @@ class ImportDialog(QDialog):
                 for col, value in enumerate([t.artist, t.title, clock(t.duration) if t.duration else '—']):
                     self.preview.setItem(i, col, QTableWidgetItem(value))
             timed = sum(1 for t in tracks if t.duration)
-            extra = f' · {timed} parçada süre var; kısa sürümler (radio edit, önizleme) otomatik elenir.' if timed else ''
-            self.summary.setText(f'{len(tracks)} parça{extra}\nOluşturduktan sonra Başlat’a basın.')
+            extra = tr(' · {timed} parçada süre var; kısa sürümler (radio edit, önizleme) otomatik elenir.').format(
+                timed=timed) if timed else ''
+            self.summary.setText(tr('{count} parça{extra}\nOluşturduktan sonra Başlat’a basın.').format(
+                count=len(tracks), extra=extra))
             self.ok.setEnabled(True)
         except Exception as e:
-            self.summary.setText(str(e) if isinstance(e, ValueError) else 'Dosya UTF-8 metin olarak okunamadı.')
+            self.summary.setText(str(e) if isinstance(e, ValueError) else tr('Dosya UTF-8 metin olarak okunamadı.'))
             self.ok.setEnabled(False)
 
 
@@ -434,19 +437,19 @@ class OcrThread(QThread):
         except OcrError as e:
             self.failed.emit(str(e))
         except Exception:
-            self.failed.emit('Ekran görüntüsü okunamadı.')
+            self.failed.emit(tr('Ekran görüntüsü okunamadı.'))
 
 
 class OcrDialog(QDialog):
     """Screenshot → Windows OCR → editable "Artist - Title" lines → new playlist."""
     def __init__(self, image, parent=None, recognize=None):
         super().__init__(parent)
-        self.setWindowTitle('Ekran görüntüsünden playlist')
+        self.setWindowTitle(tr('Ekran görüntüsünden playlist'))
         self.resize(1080, 640)
         box = QVBoxLayout(self)
         form = QFormLayout()
-        self.name = QLineEdit(time.strftime('Ekran görüntüsü %Y-%m-%d %H.%M'))
-        form.addRow('Playlist adı', self.name)
+        self.name = QLineEdit(time.strftime(tr('Ekran görüntüsü %Y-%m-%d %H.%M')))
+        form.addRow(tr('Playlist adı'), self.name)
         box.addLayout(form)
         row = QHBoxLayout()
         scroll = QScrollArea()
@@ -458,25 +461,25 @@ class OcrDialog(QDialog):
         scroll.setWidget(picture)
         row.addWidget(scroll, 1)
         right = QVBoxLayout()
-        hint = QLabel('Her satır bir parça: <b>Sanatçı - Şarkı</b>. Metin tanıma “I/1”, “rn/m” gibi harfleri '
-                      'karıştırabilir; aramadan önce adları göz ucuyla kontrol edin.')
+        hint = QLabel(tr('Her satır bir parça: <b>Sanatçı - Şarkı</b>. Metin tanıma “I/1”, “rn/m” gibi harfleri '
+                         'karıştırabilir; aramadan önce adları göz ucuyla kontrol edin.'))
         hint.setWordWrap(True)
         right.addWidget(hint)
         self.text = QPlainTextEdit()
-        self.text.setPlaceholderText('Okunuyor…')
+        self.text.setPlaceholderText(tr('Okunuyor…'))
         self.text.setEnabled(False)
         self.text.textChanged.connect(self.validate)
         right.addWidget(self.text, 1)
-        self.summary = QLabel('Windows metin tanıma çalışıyor…')
+        self.summary = QLabel(tr('Windows metin tanıma çalışıyor…'))
         self.summary.setWordWrap(True)
         right.addWidget(self.summary)
         row.addLayout(right, 1)
         box.addLayout(row, 1)
-        self.search_only = QCheckBox('Önce yalnızca ara — hiçbir dosya indirme')
+        self.search_only = QCheckBox(tr('Önce yalnızca ara — hiçbir dosya indirme'))
         box.addWidget(self.search_only)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText('Playlist oluştur')
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText('Vazgeç')
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr('Playlist oluştur'))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr('Vazgeç'))
         self.ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
         self.ok.setEnabled(False)
         buttons.accepted.connect(self.accept)
@@ -498,7 +501,7 @@ class OcrDialog(QDialog):
 
     def failed(self, message):
         self.text.setEnabled(True)
-        self.summary.setText(message + ' Listeyi elle yazabilir veya yapıştırabilirsiniz.')
+        self.summary.setText(message + tr(' Listeyi elle yazabilir veya yapıştırabilirsiniz.'))
 
     def lines(self):
         return [line.strip() for line in self.text.toPlainText().splitlines() if line.strip()]
@@ -507,12 +510,13 @@ class OcrDialog(QDialog):
         lines = self.lines()
         bad = [i for i, line in enumerate(lines, 1) if not re.search(r'\s[-–—]\s', line)]
         if not lines:
-            self.summary.setText('Parça bulunamadı.')
+            self.summary.setText(tr('Parça bulunamadı.'))
         elif bad:
-            self.summary.setText(f'{len(lines)} satır · ayırıcısı olmayan satır: ' + ', '.join(map(str, bad[:12]))
-                                 + ' (“Sanatçı - Şarkı” biçiminde düzeltin veya silin)')
+            self.summary.setText(tr('{count} satır · ayırıcısı olmayan satır: {lines}').format(
+                count=len(lines), lines=', '.join(map(str, bad[:12])))
+                + tr(' (“Sanatçı - Şarkı” biçiminde düzeltin veya silin)'))
         else:
-            self.summary.setText(f'{len(lines)} parça hazır.')
+            self.summary.setText(tr('{count} parça hazır.').format(count=len(lines)))
         self.ok.setEnabled(bool(lines) and not bad)
 
     def done(self, result):
@@ -533,7 +537,7 @@ class DetailPanel(QFrame):
         box = QVBoxLayout(self)
         box.setContentsMargins(12, 10, 12, 10)
         box.setSpacing(6)
-        self.title = QLabel('Bir parça seçin')
+        self.title = QLabel(tr('Bir parça seçin'))
         self.title.setObjectName('detailTitle')
         self.title.setWordWrap(True)
         box.addWidget(self.title)
@@ -543,32 +547,32 @@ class DetailPanel(QFrame):
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         box.addWidget(self.status)
         row = QHBoxLayout()
-        self.play = QPushButton('Dinle')
+        self.play = QPushButton(tr('Dinle'))
         self.play.clicked.connect(self.play_file)
-        self.reveal = QPushButton('Klasörde göster')
+        self.reveal = QPushButton(tr('Klasörde göster'))
         self.reveal.clicked.connect(self.reveal_file)
-        self.rename = QPushButton('Adı düzelt…')
+        self.rename = QPushButton(tr('Adı düzelt…'))
         self.rename.clicked.connect(self.edit_track)
-        self.better = QPushButton('Daha iyisini bul')
-        self.better.setToolTip('Daha iyi bir kaynak arar; doğrulanmış daha iyi dosya inene kadar mevcut dosya yerinde kalır')
+        self.better = QPushButton(tr('Daha iyisini bul'))
+        self.better.setToolTip(tr('Daha iyi bir kaynak arar; doğrulanmış daha iyi dosya inene kadar mevcut dosya yerinde kalır'))
         self.better.clicked.connect(lambda: self.window.send('upgrade_track', self.track_id))
         for b in (self.play, self.reveal, self.better, self.rename):
             row.addWidget(b)
         row.addStretch()
         box.addLayout(row)
 
-        box.addWidget(self.section('ELLE ARA'))
+        box.addWidget(self.section(tr('ELLE ARA')))
         search = QHBoxLayout()
         self.query = QLineEdit()
-        self.query.setPlaceholderText('Soulseek’te aranacak sözcükler')
+        self.query.setPlaceholderText(tr('Soulseek’te aranacak sözcükler'))
         self.query.returnPressed.connect(self.manual_search)
-        self.search_button = QPushButton('Ara')
+        self.search_button = QPushButton(tr('Ara'))
         self.search_button.clicked.connect(self.manual_search)
         search.addWidget(self.query, 1)
         search.addWidget(self.search_button)
         box.addLayout(search)
 
-        box.addWidget(self.section('ADAYLAR'))
+        box.addWidget(self.section(tr('ADAYLAR')))
         # One cell per candidate: full file name (differing version in red) over a grey detail line.
         self.table = QTableWidget(0, 1)
         self.table.setItemDelegateForColumn(0, HtmlDelegate(self.table))
@@ -588,20 +592,20 @@ class DetailPanel(QFrame):
         self.reason.setObjectName('muted')
         box.addWidget(self.reason)
         actions = QHBoxLayout()
-        self.download = QPushButton('Bunu indir')
+        self.download = QPushButton(tr('Bunu indir'))
         self.download.setObjectName('primary')
         self.download.clicked.connect(self.approve)
-        self.skip = QPushButton('Atla')
+        self.skip = QPushButton(tr('Atla'))
         self.skip.clicked.connect(lambda: self.choice('skip_track'))
-        self.later = QPushButton('Sonraya bırak')
+        self.later = QPushButton(tr('Sonraya bırak'))
         self.later.clicked.connect(lambda: self.choice('defer_track'))
-        self.restore = QPushButton('Geri al')
+        self.restore = QPushButton(tr('Geri al'))
         self.restore.clicked.connect(lambda: self.choice('restore_track'))
         for b in (self.download, self.skip, self.later, self.restore):
             actions.addWidget(b)
         box.addLayout(actions)
 
-        box.addWidget(self.section('DENEMELER VE GEÇMİŞ'))
+        box.addWidget(self.section(tr('DENEMELER VE GEÇMİŞ')))
         self.history = QPlainTextEdit()
         self.history.setReadOnly(True)
         box.addWidget(self.history, 2)
@@ -624,9 +628,9 @@ class DetailPanel(QFrame):
                        self.download, self.skip, self.later, self.restore, self.history):
             widget.setVisible(t is not None)
         if t is None:
-            self.title.setText('Bir parça seçin')
-            self.status.setText('Durumunu, adaylarını ve geçmişini burada görürsünüz. '
-                                'Bulunamayan parçayı elle arayabilir veya adını düzeltebilirsiniz.')
+            self.title.setText(tr('Bir parça seçin'))
+            self.status.setText(tr('Durumunu, adaylarını ve geçmişini burada görürsünüz. '
+                                   'Bulunamayan parçayı elle arayabilir veya adını düzeltebilirsiniz.'))
             self.reason.setText('')
             return
         if changed:
@@ -643,7 +647,8 @@ class DetailPanel(QFrame):
         _key, text = status_view(t, [a for a in attempts if a['status'] in ACTIVE_ATTEMPTS], time.time())
         self.title.setText(f"{t['artist']} — {t['title']}")
         duration = f" · {clock(t['duration'])}" if t.get('duration') else ''
-        note = f" · spektrum {t['quality_note']}" if t.get('quality_note') not in (None, '', '—') else ''
+        note = (tr(' · spektrum {note}').format(note=note_text(t['quality_note']))
+                if t.get('quality_note') not in (None, '', '—') else '')
         self.status.setText(f"{job.get('name', '')} #{t['position']}{duration} · {text}{note}\n{t['detail']}")
         done = t['status'] == 'done'
         has_file = bool(t['path']) and (done or bool(t.get('upgrade')))
@@ -682,11 +687,12 @@ class DetailPanel(QFrame):
             c = json.loads(r['data'])
             name = Path(c['filename'].replace('\\', '/')).name
             recommended = i == 0 and r['eligible']
-            slot = 'boş slot' if c.get('free_upload_slot') else f"kuyruk {c.get('queue_length', '?')}"
+            slot = tr('boş slot') if c.get('free_upload_slot') else tr('kuyruk {n}').format(n=c.get('queue_length', '?'))
             size = f" · {c['size'] / 1048576:.0f} MB" if c.get('size') else ''
             length = f" · {clock(c['length'])}" if c.get('length') else ''
-            meta = f"{quality_label(c)}{size}{length} · {c['peer']} · {slot} · puan {c['score']:.0f}"
-            badge = '<b style="color:#1f8f6a">★ Önerilen</b> · ' if recommended else ''
+            meta = (f"{quality_label(c)}{size}{length} · {c['peer']} · {slot} · "
+                    + tr('puan {score}').format(score=f"{c['score']:.0f}"))
+            badge = f'<b style="color:#1f8f6a">{tr("★ Önerilen")}</b> · ' if recommended else ''
             item = QTableWidgetItem(name)
             item.setToolTip(c['filename'] + '\n' + c.get('reason', ''))
             item.setData(Qt.ItemDataRole.UserRole, mismatch_html(track, c['filename'])
@@ -701,23 +707,23 @@ class DetailPanel(QFrame):
         lines = []
         for a in attempts:
             stamp = time.strftime('%d.%m %H:%M', time.localtime(a['created']))
-            label = {'succeeded': 'tamamlandı', 'failed': 'başarısız', 'cancelled': 'iptal',
-                     'queued': 'kuyrukta', 'downloading': 'iniyor', 'submitting': 'gönderiliyor',
-                     'finishing': 'doğrulanıyor'}.get(a['status'], a['status'])
+            label = {'succeeded': tr('tamamlandı'), 'failed': tr('başarısız'), 'cancelled': tr('iptal'),
+                     'queued': tr('kuyrukta'), 'downloading': tr('iniyor'), 'submitting': tr('gönderiliyor'),
+                     'finishing': tr('doğrulanıyor')}.get(a['status'], a['status'])
             lines.append(f"{stamp}  {a['peer']} · {label} · {a['detail']}")
         marker = f"{t['artist']} — {t['title']}"
         for e in self.window.reader().rows(
                 "SELECT created, message FROM events WHERE job=? AND (message LIKE ? OR message LIKE ?) "
                 "ORDER BY id DESC LIMIT 25", (t['job'], f'%{marker}%', f"%· {t['title']} ·%")):
             lines.append(time.strftime('%d.%m %H:%M', time.localtime(e['created'])) + '  ' + e['message'])
-        self.history.setPlainText('\n'.join(lines) or 'Henüz deneme yok.')
+        self.history.setPlainText('\n'.join(lines) or tr('Henüz deneme yok.'))
 
     def selection_changed(self):
         row = self.table.currentRow()
         t = self.track()
         if not (t and 0 <= row < len(self.rows)):
             self.download.setEnabled(False)
-            self.reason.setText('Henüz aday yok. Elle arayabilir veya adı düzeltebilirsiniz.' if t and t['status'] != 'done' else '')
+            self.reason.setText(tr('Henüz aday yok. Elle arayabilir veya adı düzeltebilirsiniz.') if t and t['status'] != 'done' else '')
             return
         c = json.loads(self.rows[row]['data'])
         job = next((j for j in self.window.data.get('jobs', []) if j['id'] == t['job']), {})
@@ -726,7 +732,7 @@ class DetailPanel(QFrame):
         self.download.setVisible(t['status'] != 'done')
         self.download.setEnabled(bool(allowed and not active and self.window.worker and job.get('mode') != 'preview'
                                       and job.get('status') != 'cancelled'))
-        self.reason.setText(c.get('reason', '') + ('' if not active else ' · Aktif indirme sürüyor.'))
+        self.reason.setText(c.get('reason', '') + ('' if not active else tr(' · Aktif indirme sürüyor.')))
 
     def approve(self):
         row = self.table.currentRow()
@@ -745,12 +751,12 @@ class DetailPanel(QFrame):
         t = self.track()
         if not t:
             return
-        text, ok = QInputDialog.getText(self, 'Adı düzelt', 'Sanatçı - Şarkı', text=f"{t['artist']} - {t['title']}")
+        text, ok = QInputDialog.getText(self, tr('Adı düzelt'), tr('Sanatçı - Şarkı'), text=f"{t['artist']} - {t['title']}")
         if not ok:
             return
         parts = re.split(r'\s+[-–—]\s+', text.strip(), maxsplit=1)
         if len(parts) != 2:
-            QMessageBox.warning(self, 'Adı düzelt', 'Sanatçı ve şarkıyı boşluk-tire-boşluk ile ayırın.')
+            QMessageBox.warning(self, tr('Adı düzelt'), tr('Sanatçı ve şarkıyı boşluk-tire-boşluk ile ayırın.'))
             return
         self.window.send('edit_track', {'track': t['id'], 'artist': parts[0], 'title': parts[1]})
 
@@ -811,19 +817,19 @@ class Window(QMainWindow):
         brand = QLabel('Soulseek Playlists')
         brand.setObjectName('brand')
         head.addWidget(brand)
-        self.connection = ElidedLabel('Bağlanıyor…')
+        self.connection = ElidedLabel(tr('Bağlanıyor…'))
         self.connection.setObjectName('muted')
         head.addWidget(self.connection, 1)
-        settings_button = QPushButton('Ayarlar')
+        settings_button = QPushButton(tr('Ayarlar'))
         settings_button.clicked.connect(self.open_settings)
         head.addWidget(settings_button)
         self.theme_button = QPushButton()
         self.theme_button.setObjectName('themeToggle')
         self.theme_button.clicked.connect(self.toggle_theme)
         head.addWidget(self.theme_button)
-        self.minimize_button = self.window_button('minimize', 'Küçült', self.showMinimized)
-        self.maximize_button = self.window_button('maximize', 'Büyüt', self.toggle_maximize)
-        self.close_button = self.window_button('close', 'Tepsiye küçült', self.close, True)
+        self.minimize_button = self.window_button('minimize', tr('Küçült'), self.showMinimized)
+        self.maximize_button = self.window_button('maximize', tr('Büyüt'), self.toggle_maximize)
+        self.close_button = self.window_button('close', tr('Tepsiye küçült'), self.close, True)
         for b in (self.minimize_button, self.maximize_button, self.close_button):
             head.addWidget(b)
         layout.addWidget(self.title_bar)
@@ -833,15 +839,15 @@ class Window(QMainWindow):
         self.banner.setObjectName('banner')
         banner = QHBoxLayout(self.banner)
         banner.setContentsMargins(10, 6, 6, 6)
-        banner_text = QLabel('slskd’de paylaşılan klasör yok. Birçok Soulseek kullanıcısı hiç paylaşımı olmayanlara '
-                             'dosya vermiyor (“Rejected”). slskd ayarlarından bir müzik klasörü paylaşmanız önerilir.')
+        banner_text = QLabel(tr('slskd’de paylaşılan klasör yok. Birçok Soulseek kullanıcısı hiç paylaşımı olmayanlara '
+                                'dosya vermiyor (“Rejected”). slskd ayarlarından bir müzik klasörü paylaşmanız önerilir.'))
         banner_text.setWordWrap(True)
         banner.addWidget(banner_text, 1)
-        open_slskd = QPushButton('slskd’yi aç')
+        open_slskd = QPushButton(tr('slskd’yi aç'))
         open_slskd.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(str(load_settings_safe(self.root).get(
             'slskd_url', 'http://localhost:5030')))))
         banner.addWidget(open_slskd)
-        dismiss = QPushButton('Kapat')
+        dismiss = QPushButton(tr('Kapat'))
         dismiss.clicked.connect(self.dismiss_banner)
         banner.addWidget(dismiss)
         self.banner.hide()
@@ -855,10 +861,10 @@ class Window(QMainWindow):
         lv = QVBoxLayout(left)
         lv.setContentsMargins(0, 0, 10, 0)
         left_head = QHBoxLayout()
-        left_head.addWidget(QLabel('PLAYLISTLER'))
+        left_head.addWidget(QLabel(tr('PLAYLISTLER')))
         left_head.addStretch()
-        add = QPushButton('+ Ekle')
-        add.setToolTip('TXT, CSV veya ekran görüntüsü ekleyin, pencereye sürükleyin ya da Ctrl+V ile yapıştırın')
+        add = QPushButton(tr('+ Ekle'))
+        add.setToolTip(tr('TXT, CSV veya ekran görüntüsü ekleyin, pencereye sürükleyin ya da Ctrl+V ile yapıştırın'))
         add.setObjectName('primary')
         add.clicked.connect(self.choose)
         left_head.addWidget(add)
@@ -874,7 +880,7 @@ class Window(QMainWindow):
         self.jobs.customContextMenuRequested.connect(
             lambda pos: self.job_menu().exec(self.jobs.viewport().mapToGlobal(pos)) if self.jobs.itemAt(pos) else None)
         panel_layout.addWidget(self.jobs, 1)
-        hint = QLabel('TXT, CSV veya ekran görüntüsü bırakın; ya da Ctrl+V ile yapıştırın.')
+        hint = QLabel(tr('TXT, CSV veya ekran görüntüsü bırakın; ya da Ctrl+V ile yapıştırın.'))
         hint.setWordWrap(True)
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setObjectName('muted')
@@ -887,23 +893,23 @@ class Window(QMainWindow):
         mv = QVBoxLayout(middle)
         mv.setContentsMargins(0, 0, 10, 0)
         job_head = QHBoxLayout()
-        self.job_title = QLabel('Bir playlist ekleyin')
+        self.job_title = QLabel(tr('Bir playlist ekleyin'))
         self.job_title.setObjectName('title')
         job_head.addWidget(self.job_title)
         self.path_label = ElidedLabel('')
         self.path_label.setObjectName('muted')
         job_head.addWidget(self.path_label, 1)
-        self.toggle_button = QPushButton('Başlat')
+        self.toggle_button = QPushButton(tr('Başlat'))
         self.toggle_button.setObjectName('primary')
         self.toggle_button.clicked.connect(self.toggle_job)
         job_head.addWidget(self.toggle_button)
-        self.retry_button = QPushButton('Tekrar ara')
-        self.retry_button.setToolTip('Bulunamayanları bütün sorgularla hemen yeniden arar')
+        self.retry_button = QPushButton(tr('Tekrar ara'))
+        self.retry_button.setToolTip(tr('Bulunamayanları bütün sorgularla hemen yeniden arar'))
         self.retry_button.clicked.connect(lambda: self.action('retry'))
         job_head.addWidget(self.retry_button)
         self.more_button = QToolButton()
         self.more_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.more_button.setToolTip('Diğer işlemler')
+        self.more_button.setToolTip(tr('Diğer işlemler'))
         job_head.addWidget(self.more_button)
         mv.addLayout(job_head)
         chips = QHBoxLayout()
@@ -912,7 +918,7 @@ class Window(QMainWindow):
         self.chip_group.setExclusive(True)
         self.chips = {}
         for key, label, _statuses in FILTERS:
-            chip = QPushButton(label)
+            chip = QPushButton(tr(label))
             chip.setObjectName('chipAttention' if key in ('attention', 'suspicious') else 'chip')
             chip.setCheckable(True)
             chip.clicked.connect(lambda checked=False, k=key: self.set_filter(k))
@@ -922,7 +928,7 @@ class Window(QMainWindow):
         self.chips['all'].setChecked(True)
         chips.addStretch()
         self.filter = QLineEdit()
-        self.filter.setPlaceholderText('Sanatçı veya şarkı ara…')
+        self.filter.setPlaceholderText(tr('Sanatçı veya şarkı ara…'))
         self.filter.setMinimumWidth(150)
         self.filter.setMaximumWidth(260)
         self.filter.textChanged.connect(self.render_tracks)
@@ -933,7 +939,7 @@ class Window(QMainWindow):
         self.progress.setFixedHeight(4)
         mv.addWidget(self.progress)
         self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(['Durum', '#', 'Sanatçı', 'Şarkı', 'Kalite', 'Süre'])
+        self.table.setHorizontalHeaderLabels([tr('Durum'), '#', tr('Sanatçı'), tr('Şarkı'), tr('Kalite'), tr('Süre')])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -941,7 +947,7 @@ class Window(QMainWindow):
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        for col, width in enumerate([165, 34, 130, 200, 125, 48]):
+        for col, width in enumerate([165, 34, 130, 200, 125, 62]):
             self.table.setColumnWidth(col, width)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.table.itemSelectionChanged.connect(self.track_selected)
@@ -957,7 +963,7 @@ class Window(QMainWindow):
 
         # Footer
         self.log_dialog = QDialog(self)
-        self.log_dialog.setWindowTitle('Canlı günlük · tüm playlistler')
+        self.log_dialog.setWindowTitle(tr('Canlı günlük · tüm playlistler'))
         self.log_dialog.resize(920, 500)
         log_layout = QVBoxLayout(self.log_dialog)
         self.logs = QPlainTextEdit()
@@ -965,13 +971,13 @@ class Window(QMainWindow):
         self.logs.setMaximumBlockCount(5000)
         log_layout.addWidget(self.logs)
         bottom = QHBoxLayout()
-        self.latest_event = ElidedLabel('Henüz işlem yok')
+        self.latest_event = ElidedLabel(tr('Henüz işlem yok'))
         self.latest_event.setObjectName('muted')
         bottom.addWidget(self.latest_event, 1)
         self.footer = QLabel()
         self.footer.setObjectName('muted')
         bottom.addWidget(self.footer)
-        log_button = QPushButton('Günlük')
+        log_button = QPushButton(tr('Günlük'))
         log_button.clicked.connect(self.open_logs)
         bottom.addWidget(log_button)
         self.size_grip = QSizeGrip(self)
@@ -982,8 +988,8 @@ class Window(QMainWindow):
         self.tray = QSystemTrayIcon(self.windowIcon(), self)
         self.tray.setToolTip('Soulseek Playlists')
         menu = QMenu()
-        menu.addAction('Uygulamayı göster').triggered.connect(self.reveal)
-        menu.addAction('Tamamen çık').triggered.connect(self.quit_app)
+        menu.addAction(tr('Uygulamayı göster')).triggered.connect(self.reveal)
+        menu.addAction(tr('Tamamen çık')).triggered.connect(self.quit_app)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(lambda why: self.reveal() if why in (
             QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick) else None)
@@ -992,7 +998,7 @@ class Window(QMainWindow):
             self.tray.show()
         if worker:
             worker.snapshot.connect(self.receive)
-            worker.notice.connect(lambda msg: QMessageBox.warning(self, 'İşlem bilgisi', msg))
+            worker.notice.connect(lambda msg: QMessageBox.warning(self, tr('İşlem bilgisi'), msg))
         QShortcut(QKeySequence.StandardKey.Paste, self, activated=self.paste_list)
         QShortcut(QKeySequence(Qt.Key.Key_Space), self.table, activated=lambda: self.detail.play_file())
         self.clock = QTimer(self)
@@ -1018,7 +1024,7 @@ class Window(QMainWindow):
         self.minimize_button.setIcon(ui_icon('minimize', color))
         self.minimize_button.setIconSize(QSize(18, 18))
         self.maximize_button.setIcon(ui_icon('restore' if self.isMaximized() else 'maximize', color))
-        self.maximize_button.setToolTip('Geri al' if self.isMaximized() else 'Büyüt')
+        self.maximize_button.setToolTip(tr('Geri al') if self.isMaximized() else tr('Büyüt'))
         self.maximize_button.setIconSize(QSize(18, 18))
         self.close_button.setIcon(ui_icon('close', color))
         self.close_button.setIconSize(QSize(18, 18))
@@ -1039,7 +1045,7 @@ class Window(QMainWindow):
                 palette.setColor(getattr(QPalette.ColorRole, role), QColor(color))
         app.setPalette(palette)
         app.setStyleSheet(theme_style(self.dark))
-        self.theme_button.setToolTip('Açık moda geç' if self.dark else 'Koyu moda geç')
+        self.theme_button.setToolTip(tr('Açık moda geç') if self.dark else tr('Koyu moda geç'))
         self.update_window_icons()
         self.render_tracks()
 
@@ -1090,15 +1096,15 @@ class Window(QMainWindow):
         try:
             dialog = SetupDialog(self.root, load_settings(self.root), self)
         except (OSError, ValueError):
-            QMessageBox.warning(self, 'Ayarlar', 'Ayar dosyası okunamadı; mevcut dosya korunuyor.')
+            QMessageBox.warning(self, tr('Ayarlar'), tr('Ayar dosyası okunamadı; mevcut dosya korunuyor.'))
             return
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            QMessageBox.information(self, 'Ayarlar kaydedildi', 'Ayarlar bir sonraki açılışta uygulanacak.\n'
-                                    'Tepsi menüsünden Tamamen çık seçip uygulamayı yeniden açın.')
+            QMessageBox.information(self, tr('Ayarlar kaydedildi'), tr('Ayarlar bir sonraki açılışta uygulanacak.\n'
+                                    'Tepsi menüsünden Tamamen çık seçip uygulamayı yeniden açın.'))
 
     def choose(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, 'Playlist seç', str(self.root),
-                                                'Şarkı listesi veya ekran görüntüsü (*.txt *.csv *.png *.jpg *.jpeg *.bmp *.webp)')
+        paths, _ = QFileDialog.getOpenFileNames(self, tr('Playlist seç'), str(self.root),
+                                                tr('Şarkı listesi veya ekran görüntüsü (*.txt *.csv *.png *.jpg *.jpeg *.bmp *.webp)'))
         for path in paths:
             self.import_any(path)
 
@@ -1129,7 +1135,7 @@ class Window(QMainWindow):
         text = QApplication.clipboard().text().strip()
         lines = tracklist_from_ocr(text.splitlines())    # also turns "Title by Artist" around
         if not any(re.search(r'\s[-–—]\s', line) for line in lines):
-            QMessageBox.information(self, 'Yapıştır', 'Panoda "Sanatçı - Şarkı" satırları veya ekran görüntüsü bulunamadı.')
+            QMessageBox.information(self, tr('Yapıştır'), tr('Panoda "Sanatçı - Şarkı" satırları veya ekran görüntüsü bulunamadı.'))
             return
         text = '\n'.join(lines)
         folder = self.root / 'imports'
@@ -1163,41 +1169,42 @@ class Window(QMainWindow):
         if not job:
             return menu
         folder = Path(job['folder'])
-        menu.addAction('Klasörü aç').triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))))
+        menu.addAction(tr('Klasörü aç')).triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))))
         xml = next(folder.glob('*.rekordbox.xml'), None) if folder.is_dir() else None
-        action = menu.addAction('rekordbox XML’ini göster')
+        action = menu.addAction(tr('rekordbox XML’ini göster'))
         action.setEnabled(bool(xml))
         action.triggered.connect(lambda: reveal_in_explorer(xml))
-        action = menu.addAction('Raporu aç (rapor.csv)')
+        action = menu.addAction(tr('Raporu aç (rapor.csv)'))
         action.setEnabled((folder / 'rapor.csv').is_file())
         action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder / 'rapor.csv'))))
         count = sum(1 for t in self.data.get('tracks', []) if t['job'] == job['id'] and suspicious(t))
-        action = menu.addAction(f'Şüpheli dosyalar için daha iyisini bul ({count})')
+        action = menu.addAction(tr('Şüpheli dosyalar için daha iyisini bul ({count})').format(count=count))
         action.setEnabled(count > 0)
         action.triggered.connect(lambda: self.send('upgrade_suspicious', job['id']))
         menu.addSeparator()
-        menu.addAction('Yeniden adlandır…').triggered.connect(self.rename_job)
+        menu.addAction(tr('Yeniden adlandır…')).triggered.connect(self.rename_job)
         if job.get('layout') in ('artist_title', 'title_artist'):
             other = 'title_artist' if job['layout'] == 'artist_title' else 'artist_title'
-            label = 'Şarkı - Sanatçı' if other == 'title_artist' else 'Sanatçı - Şarkı'
-            menu.addAction(f'Sütun sırasını değiştir ({label})').triggered.connect(
+            label = tr('Şarkı - Sanatçı') if other == 'title_artist' else tr('Sanatçı - Şarkı')
+            menu.addAction(tr('Sütun sırasını değiştir ({label})').format(label=label)).triggered.connect(
                 lambda: self.send('relayout', {'job': job['id'], 'layout': other}))
         menu.addSeparator()
-        menu.addAction('İşi iptal et').triggered.connect(lambda: self.action('cancel'))
-        menu.addAction('Listeden kaldır…').triggered.connect(self.remove_job)
+        menu.addAction(tr('İşi iptal et')).triggered.connect(lambda: self.action('cancel'))
+        menu.addAction(tr('Listeden kaldır…')).triggered.connect(self.remove_job)
         return menu
 
     def rename_job(self):
         job = self.current_job()
         if job:
-            name, ok = QInputDialog.getText(self, 'Yeniden adlandır', 'Playlist adı', text=job['name'])
+            name, ok = QInputDialog.getText(self, tr('Yeniden adlandır'), tr('Playlist adı'), text=job['name'])
             if ok and name.strip():
                 self.send('rename_job', {'job': job['id'], 'name': name})
 
     def remove_job(self):
         job = self.current_job()
-        if job and QMessageBox.question(self, 'Listeden kaldır', f"“{job['name']}” listeden kaldırılsın mı?\n"
-                                        'İndirilmiş dosyalar ve klasör silinmez; aktif istekler iptal edilir.'
+        if job and QMessageBox.question(self, tr('Listeden kaldır'), tr(
+                '“{name}” listeden kaldırılsın mı?\nİndirilmiş dosyalar ve klasör silinmez; aktif istekler iptal edilir.'
+                ).format(name=job['name'])
                                         ) == QMessageBox.StandardButton.Yes:
             self.send('remove_job', job['id'])
 
@@ -1210,7 +1217,7 @@ class Window(QMainWindow):
         if not self.job_id:
             return
         if action == 'cancel' and QMessageBox.question(
-                self, 'İşi iptal et', 'Bu playlist’in indirme istekleri iptal edilsin mi? Tamamlanan dosyalar korunacak.'
+                self, tr('İşi iptal et'), tr('Bu playlist’in indirme istekleri iptal edilsin mi? Tamamlanan dosyalar korunacak.')
         ) != QMessageBox.StandardButton.Yes:
             return
         self.send(action, self.job_id)
@@ -1226,15 +1233,16 @@ class Window(QMainWindow):
             tracks = [t for t in data['tracks'] if t['job'] == job['id']]
             done = sum(t['status'] == 'done' for t in tracks)
             attention = sum(t['status'] == 'review' for t in tracks)
-            state = {'active': 'çalışıyor', 'paused': 'duraklatıldı', 'completed': 'tamamlandı', 'cancelled': 'iptal',
-                     'preview_complete': 'arama testi bitti'}.get(job['status'], job['status'])
-            item = QListWidgetItem(f"{job['name']}\n{done}/{len(tracks)} · {state}" + (f' · {attention} seçim' if attention else ''))
+            state = {'active': tr('çalışıyor'), 'paused': tr('duraklatıldı'), 'completed': tr('tamamlandı'), 'cancelled': tr('iptal'),
+                     'preview_complete': tr('arama testi bitti')}.get(job['status'], job['status'])
+            item = QListWidgetItem(f"{job['name']}\n{done}/{len(tracks)} · {state}"
+                                   + (tr(' · {n} seçim').format(n=attention) if attention else ''))
             item.setData(Qt.ItemDataRole.UserRole, job['id'])
             self.jobs.addItem(item)
             if job['id'] == selected:
                 self.jobs.setCurrentItem(item)
             if self.job_states.get(job['id']) == 'active' and job['status'] == 'completed':
-                self.tray.showMessage('Playlist tamamlandı', f"{job['name']} · {done} parça hazır.",
+                self.tray.showMessage(tr('Playlist tamamlandı'), tr('{name} · {done} parça hazır.').format(name=job['name'], done=done),
                                       QSystemTrayIcon.MessageIcon.Information, 8000)
             self.job_states[job['id']] = job['status']
         if not self.jobs.currentItem() and self.jobs.count():
@@ -1250,8 +1258,9 @@ class Window(QMainWindow):
             for t in new:
                 self.preferences.setValue(f"notified/{t['id']}/review", True)
             self.preferences.sync()
-            self.tray.showMessage('Seçim bekleyen şarkılar', f'{len(reviews)} parça için yalnızca benzer sürümler bulundu. '
-                                  'Seçmek için tıklayın.', QSystemTrayIcon.MessageIcon.Information, 10000)
+            self.tray.showMessage(tr('Seçim bekleyen şarkılar'), tr(
+                '{count} parça için yalnızca benzer sürümler bulundu. Seçmek için tıklayın.').format(count=len(reviews)),
+                QSystemTrayIcon.MessageIcon.Information, 10000)
         if data.get('events'):
             event = data['events'][0]
             name = next((j['name'] for j in data['jobs'] if j['id'] == event['job']), 'Uygulama')
@@ -1273,28 +1282,29 @@ class Window(QMainWindow):
             widget.setEnabled(bool(job))
         self.more_button.setMenu(self.job_menu())
         if not job:
-            self.job_title.setText('Bir playlist ekleyin')
-            self.path_label.setText('TXT / CSV ekleyin veya Ctrl+V ile şarkı listesini yapıştırın.')
+            self.job_title.setText(tr('Bir playlist ekleyin'))
+            self.path_label.setText(tr('TXT / CSV ekleyin veya Ctrl+V ile şarkı listesini yapıştırın.'))
             self.retry_button.hide()
             self.render_tracks()
             return
         self.job_title.setText(job['name'])
         self.path_label.setText(job['folder'])
         running = job['status'] == 'active'
-        self.toggle_button.setText('Duraklat' if running else 'Başlat')
-        self.toggle_button.setToolTip('Yeni arama ve indirmeleri durdurur; başlamış transferler izlenmeye devam eder'
-                                      if running else 'Arama ve indirmeyi başlatır')
+        self.toggle_button.setText(tr('Duraklat') if running else tr('Başlat'))
+        self.toggle_button.setToolTip(tr('Yeni arama ve indirmeleri durdurur; başlamış transferler izlenmeye devam eder')
+                                      if running else tr('Arama ve indirmeyi başlatır'))
         tracks = [t for t in self.data.get('tracks', []) if t['job'] == self.job_id]
         counts = {key: sum(matches_filter(key, statuses, t) for t in tracks) for key, _label, statuses in FILTERS}
         for key, label, _statuses in FILTERS:
-            self.chips[key].setText(f'{label} {counts[key]}')
+            self.chips[key].setText(f'{tr(label)} {counts[key]}')
             self.chips[key].setVisible(key in ('all', 'done') or counts[key] > 0 or self.filter_key == key)
         unresolved = sum(t['status'] in ('not_found', 'review', 'retry_wait') for t in tracks)
         self.retry_button.setVisible(unresolved > 0)
         done = counts['done'] + counts['skipped']
         self.progress.setMaximum(max(1, len(tracks)))
         self.progress.setValue(done)
-        self.progress.setToolTip(f"{counts['done']} tamamlandı · {counts['skipped']} atlandı · {len(tracks)} parça")
+        self.progress.setToolTip(tr('{done} tamamlandı · {skipped} atlandı · {total} parça').format(
+            done=counts['done'], skipped=counts['skipped'], total=len(tracks)))
         self.render_tracks()
 
     def set_filter(self, key):
@@ -1330,7 +1340,7 @@ class Window(QMainWindow):
                 quality = ' / '.join(dict.fromkeys(a.get('quality', '—') for a in attempts)) or '—'
             note = t.get('quality_note') or ''
             if 'şüpheli' in note:
-                quality += ' · şüpheli (' + note.split(' ')[0] + ' kHz)'
+                quality += tr(' · şüpheli ({khz} kHz)').format(khz=note.split(' ')[0])
             length = meta.get('length') if meta else t.get('duration')
             values = [text, str(t['position']), t['artist'], t['title'], quality, clock(length) if length else '—']
             for c, value in enumerate(values):
@@ -1346,10 +1356,10 @@ class Window(QMainWindow):
                     item.setFont(font)
                 if c == 4 and 'şüpheli' in note:
                     item.setForeground(QColor('#e0a33a' if self.dark else '#a35d00'))
-                    item.setToolTip('Spektrum ' + note + ': MP3’ten dönüştürülmüş olabilir.')
+                    item.setToolTip(tr('Spektrum {note}: MP3’ten dönüştürülmüş olabilir.').format(note=note_text(note)))
                 if c == 5 and not meta and t.get('duration'):
                     item.setForeground(QColor('#8a96a5'))
-                    item.setToolTip('Listedeki süre')
+                    item.setToolTip(tr('Listedeki süre'))
                 self.table.setItem(i, c, item)
             if t['id'] == selected:
                 self.table.selectRow(i)
@@ -1379,17 +1389,17 @@ class Window(QMainWindow):
             self.detail.play_file()
 
     def update_clock(self):
-        self.connection.setText(self.data.get('connection', 'Bağlanıyor…'))
+        self.connection.setText(self.data.get('connection', tr('Bağlanıyor…')))
         tracks = self.data.get('tracks', [])
         searching = sum(1 for t in tracks if t.get('search_id'))
         transfers = sum(1 for a in self.data.get('attempts', []) if a['status'] in ACTIVE_ATTEMPTS)
         library = self.data.get('library_files', 0)
-        parts = [f'{searching} arama', f'{transfers} transfer']
+        parts = [tr('{n} arama').format(n=searching), tr('{n} transfer').format(n=transfers)]
         if library:
-            parts.append(f'kütüphane {library:,} dosya'.replace(',', '.'))
+            parts.append(tr('kütüphane {n} dosya').format(n=f'{library:,}'.replace(',', '.')))
         self.footer.setText(' · '.join(parts))
-        updated = time.strftime('%H:%M:%S', time.localtime(self.received_at)) if self.received_at else 'bekleniyor'
-        self.footer.setToolTip(f'Son motor güncellemesi: {updated}')
+        updated = time.strftime('%H:%M:%S', time.localtime(self.received_at)) if self.received_at else tr('bekleniyor')
+        self.footer.setToolTip(tr('Son motor güncellemesi: {time}').format(time=updated))
 
     def open_logs(self, *_, reveal=True):
         events = self.reader().rows('SELECT e.*, j.name FROM events e LEFT JOIN jobs j ON j.id=e.job ORDER BY e.id')
@@ -1435,7 +1445,7 @@ class Window(QMainWindow):
         if not self.quitting and self.tray.isVisible():
             self.hide()
             event.ignore()
-            self.tray.showMessage('Soulseek Playlists', 'Arka planda çalışıyor. Tepsi simgesinden tekrar açabilirsiniz.')
+            self.tray.showMessage('Soulseek Playlists', tr('Arka planda çalışıyor. Tepsi simgesinden tekrar açabilirsiniz.'))
             return
         if not self.quitting:
             event.ignore()
@@ -1450,7 +1460,7 @@ class Window(QMainWindow):
         if self.quitting:
             return
         self.quitting = True
-        self.footer.setText('İşler kaydediliyor…')
+        self.footer.setText(tr('İşler kaydediliyor…'))
         self.setEnabled(False)
         if self.worker:
             self.worker.requestInterruption()
@@ -1475,6 +1485,7 @@ def main():
     app.setStyle('Fusion')
     app.setStyleSheet(STYLE)
     app.setQuitOnLastWindowClosed(False)
+    set_language(load_settings_safe(root).get('language', 'auto'))
     if '--package-check' in sys.argv:
         from package_check import run
         return run(app, sys.argv[sys.argv.index('--package-check') + 1])
@@ -1504,7 +1515,7 @@ def main():
     try:
         config = load_settings(root)
     except (OSError, ValueError):
-        QMessageBox.warning(None, 'Ayarlar okunamadı', 'config.json okunamadı. Dosya korunuyor; ayar dosyasını kontrol edin.')
+        QMessageBox.warning(None, tr('Ayarlar okunamadı'), tr('config.json okunamadı. Dosya korunuyor; ayar dosyasını kontrol edin.'))
         return 1
     if not (root / 'config.json').exists() or (getattr(sys, 'frozen', False) and not config.get('setup_complete')):
         setup = SetupDialog(root, config)

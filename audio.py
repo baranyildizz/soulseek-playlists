@@ -1,6 +1,7 @@
 """Audio file checks, tags (mutagen) and optional ffmpeg tools (spectrum, AIFF)."""
 from __future__ import annotations
 
+from i18n import tr
 import hashlib
 import os
 import shutil
@@ -24,25 +25,26 @@ def validate_audio(path, size: int = 0, minimum_mp3_kbps: int | None = None) -> 
     """Raise ValueError unless `path` is a readable audio file of the expected size."""
     path = Path(path)
     if size and path.stat().st_size != size:
-        raise ValueError('Dosya boyutu beklenen boyutla eşleşmiyor.')
+        raise ValueError(tr('Dosya boyutu beklenen boyutla eşleşmiyor.'))
     try:
         audio = mutagen.File(path)
     except mutagen.MutagenError:
         audio = None
     info = getattr(audio, 'info', None)
     if info is None:
-        raise ValueError('Ses başlığı okunamadı.')
+        raise ValueError(tr('Ses başlığı okunamadı.'))
     if path.suffix.lower() == '.flac':
         # Streamed FLAC encoders leave total_samples=0, so mutagen reports length 0
         # for perfectly good files. A valid STREAMINFO block is enough here.
         if not getattr(info, 'sample_rate', 0) or not getattr(info, 'channels', 0):
-            raise ValueError('FLAC başlığı geçersiz.')
+            raise ValueError(tr('FLAC başlığı geçersiz.'))
         return
     if not getattr(info, 'length', 0) or info.length <= 0:
-        raise ValueError('Ses süresi okunamadı.')
+        raise ValueError(tr('Ses süresi okunamadı.'))
     if minimum_mp3_kbps and path.suffix.lower() == '.mp3':
         if getattr(info, 'bitrate', 0) < (minimum_mp3_kbps - 20) * 1000:
-            raise ValueError(f'MP3 gerçek bitrate {round(info.bitrate / 1000)} kbps; {minimum_mp3_kbps} beklendi.')
+            raise ValueError(tr('MP3 gerçek bitrate {kbps} kbps; {minimum} beklendi.').format(
+                kbps=round(info.bitrate / 1000), minimum=minimum_mp3_kbps))
 
 
 def audio_metadata(path) -> dict:
@@ -171,4 +173,4 @@ def convert_to_aiff(source, destination, ffmpeg: str) -> None:
                              '-c:a', codec, '-write_id3v2', '1', '-f', 'aiff', str(destination)],
                             capture_output=True, timeout=300, creationflags=_NO_WINDOW)
     if result.returncode != 0 or not Path(destination).is_file():
-        raise ValueError('AIFF dönüşümü başarısız.')
+        raise ValueError(tr('AIFF dönüşümü başarısız.'))

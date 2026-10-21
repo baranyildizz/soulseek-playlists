@@ -1,6 +1,7 @@
 """SQLite persistence. The schema is append-only so existing databases keep working."""
 from __future__ import annotations
 
+from i18n import tr
 import json
 import re
 import shutil
@@ -134,8 +135,9 @@ class Store:
                 self.db.execute('INSERT INTO tracks(id,job,key,position,artist,title,duration,album) '
                                 'VALUES(?,?,?,?,?,?,?,?)',
                                 (str(uuid.uuid4()), ident, t.key, position, t.artist, t.title, t.duration, t.album))
-        label = {'title_artist': 'Şarkı - Sanatçı', 'csv': 'CSV · süre bilgisiyle'}.get(layout, 'Sanatçı - Şarkı')
-        self.event(ident, f'{len(tracks)} parça içe aktarıldı ({label}). Başlat düğmesiyle başlayın.')
+        label = {'title_artist': tr('Şarkı - Sanatçı'), 'csv': tr('CSV · süre bilgisiyle')}.get(layout, tr('Sanatçı - Şarkı'))
+        self.event(ident, tr('{count} parça içe aktarıldı ({label}). Başlat düğmesiyle başlayın.').format(
+            count=len(tracks), label=label))
         return ident
 
     def stored_layout(self, job) -> str:
@@ -174,7 +176,7 @@ class Store:
                 self.db.execute('DELETE FROM approvals WHERE track=?', (row['id'],))
                 self.db.execute('DELETE FROM candidates WHERE track=?', (row['id'],))
                 reset = {} if row['status'] in ('done', 'skipped', 'deferred') else {
-                    'status': 'pending', 'detail': 'Sütun sırası düzeltildi; yeniden aranacak',
+                    'status': 'pending', 'detail': tr('Sütun sırası düzeltildi; yeniden aranacak'),
                     'rounds': 0, 'variant': 0, 'next_search': 0}
                 values = {'artist': track.artist, 'title': track.title, 'key': f'{row["id"]}:tmp', **reset}
                 self.db.execute('UPDATE tracks SET ' + ','.join(f'{k}=?' for k in values) + ' WHERE id=?',
@@ -199,6 +201,6 @@ class Store:
                 'approvals': self.rows('SELECT track,candidate FROM approvals'),
                 'events': self.rows('SELECT * FROM events ORDER BY id DESC LIMIT 150'),
                 'next_search': float(self.setting('next_search')),
-                'connection': self.setting('connection', 'Bağlanıyor…'),
+                'connection': self.setting('connection', tr('Bağlanıyor…')),
                 'share_warning': self.setting('share_warning', '') == '1',
                 'library_files': self.one('SELECT COUNT(*) n FROM library')['n']}

@@ -1,4 +1,5 @@
 """Start the local service without exposing credentials or blocking the GUI."""
+from i18n import tr
 import csv
 import os
 from pathlib import Path
@@ -48,7 +49,7 @@ class SlskdRuntime:
         self.config=config
         self.process=None
         self.next_start=0
-        self.message='slskd başlatılıyor…'
+        self.message=tr('slskd başlatılıyor…')
 
     def reachable(self):
         url=urlsplit(self.config['slskd_url'])
@@ -73,17 +74,17 @@ class SlskdRuntime:
         if self.reachable(): return True, ''
         url=urlsplit(self.config['slskd_url'])
         if not self.config.get('auto_start_slskd',True) or url.hostname not in ('localhost','127.0.0.1','::1') or os.name!='nt':
-            return False,'slskd erişilemiyor · 5 sn sonra yeniden denenecek'
+            return False,tr('slskd erişilemiyor · 5 sn sonra yeniden denenecek')
         configured=self.config.get('slskd_executable')
         if not configured:
             found=sorted((Path.home()/'Downloads').glob('slskd*/slskd.exe'))
             configured=str(found[-1]) if found else ''
         executable=Path(os.path.expandvars(configured))
-        if not executable.is_file():return False,'slskd bulunamadı · config.json içindeki slskd_executable yolunu kontrol edin'
+        if not executable.is_file():return False,tr('slskd bulunamadı · config.json içindeki slskd_executable yolunu kontrol edin')
         if time.monotonic()<self.next_start:return False,self.message
         try:
             if self.running(executable):
-                return False,'slskd çalışıyor · web servisinin hazır olması bekleniyor'
+                return False,tr('slskd çalışıyor · web servisinin hazır olması bekleniyor')
             command=[str(executable)]
             listen_port=self.config.get('slskd_listen_port')
             if listen_port not in (None,''):
@@ -91,12 +92,12 @@ class SlskdRuntime:
                     listen_port=int(listen_port)
                     if not 1 <= listen_port <= 65535:raise ValueError
                 except (ValueError,TypeError):
-                    return False,'Soulseek giriş portu geçersiz · Ayarlar bölümünü kontrol edin'
+                    return False,tr('Soulseek giriş portu geçersiz · Ayarlar bölümünü kontrol edin')
                 command.extend(['--slsk-listen-port',str(listen_port)])
             config_path=self.config.get('slskd_config_path')
             if config_path:
                 config_path=Path(os.path.expandvars(config_path))
-                if not config_path.is_file():return False,'slskd ayar dosyası bulunamadı · slskd_config_path yolunu kontrol edin'
+                if not config_path.is_file():return False,tr('slskd ayar dosyası bulunamadı · slskd_config_path yolunu kontrol edin')
                 command.extend(['--config',str(config_path)])
             # Only paths go on the command line. Soulseek reads its existing YAML.
             self.next_start=time.monotonic()+60
@@ -104,8 +105,8 @@ class SlskdRuntime:
                 self.process=subprocess.Popen(command,cwd=str(executable.parent),
                     stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
                     creationflags=subprocess.CREATE_NO_WINDOW,env=external_environment())
-            self.message='slskd başlatılıyor · kayıtlı hesapla bağlantı kuruluyor'
+            self.message=tr('slskd başlatılıyor · kayıtlı hesapla bağlantı kuruluyor')
         except (OSError,subprocess.SubprocessError):
             self.next_start=time.monotonic()+60
-            self.message='slskd başlatılamadı · 60 sn sonra yeniden denenecek'
+            self.message=tr('slskd başlatılamadı · 60 sn sonra yeniden denenecek')
         return False,self.message

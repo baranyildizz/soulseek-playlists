@@ -1,51 +1,71 @@
 # Soulseek Playlists
 
-
 <p align="center">
-<img width="100%" alt="Soulseek Playlists uygulama akışı" src="https://github.com/user-attachments/assets/f6e1bb98-cfb2-4aa5-9dd1-f3dcba48e50b" />
-.txt / .csv   ->   app   ->   flac, aiff, mp3
+<img width="100%" alt="Soulseek Playlists workflow" src="https://github.com/user-attachments/assets/f6e1bb98-cfb2-4aa5-9dd1-f3dcba48e50b" />
+.txt / .csv / screenshot   ->   app   ->   flac, aiff, mp3
 </p>
 
+A Windows desktop app that takes a track list — a TXT file, a Spotify/Exportify CSV, pasted text or a **screenshot of a tracklist** — searches Soulseek for it through [slskd](https://github.com/slskd/slskd), picks the right version, downloads the tracks in order and collects every list in its own DJ-ready folder. Only use it for content you have the right to download.
 
+The interface is available in **English and Turkish** (follows the Windows display language; changeable in Settings). [Türkçe açıklama aşağıda.](#türkçe)
 
-Şarkı listelerini (TXT, Spotify/Exportify CSV veya panodan yapıştırılan metin) [slskd](https://github.com/slskd/slskd) üzerinden Soulseek'te arayan, doğru sürümü bulup sırayla indiren ve her listeyi DJ kullanımına hazır ayrı bir klasörde toplayan Windows masaüstü uygulaması. Yalnızca indirme hakkınız olan içerikler için kullanın.
+## Getting started
 
-## Kullanım
+Download the Windows package from [GitHub Releases](https://github.com/baranyildizz/soulseek-playlists/releases/latest). Unzip it and keep `Soulseek Playlists.exe` together with the `_internal` folder next to it. On first start, choose slskd, its settings file, the folder where slskd puts finished downloads, and the folder for your playlists. More detail: [PAYLASIM.md](PAYLASIM.md) (Turkish).
 
-Windows paketini [GitHub Releases](https://github.com/baranyildizz/soulseek-playlists/releases/latest) bölümünden indirin. ZIP'i açın; `Soulseek Playlists.exe` ve yanındaki `_internal` klasörünü birlikte tutun. İlk çalıştırmada slskd programını, slskd yapılandırma dosyasını, tamamlanan indirme klasörünü ve playlistlerin kaydedileceği klasörü seçin. Ayrıntılar: [PAYLASIM.md](PAYLASIM.md) ve [GUI-KULLANIM.md](GUI-KULLANIM.md).
+This beta is not code-signed, so Windows may show a security warning. Try it first with a 1–3 track list you are allowed to download.
 
-Bu beta sürüm kod imzası taşımaz; Windows güvenlik uyarısı gösterebilir. İlk denemeyi 1–3 parçalık, indirme hakkınız olan bir listeyle yapın.
+[slskd](https://github.com/slskd/slskd) is installed separately and set up with your own [Soulseek](https://www.slsknet.org/news/node/680) account. Share at least one folder in slskd: many Soulseek users refuse uploads to people who share nothing.
 
-[slskd](https://github.com/slskd/slskd) ayrıca kurulmalı ve kendi [Soulseek](https://www.slsknet.org/news/node/680) hesabınızla yapılandırılmalıdır. slskd'de en az bir klasör paylaşmanız önerilir: birçok Soulseek kullanıcısı hiç paylaşımı olmayanlara dosya vermez.
+## What it does
 
-## Neler yapar
+- **Finds the right version.** Artist, title and version are checked separately. “Original Mix”, “Extended Mix” and a file without a version tag count as the same; a Club Mix, Dub, Edit, Live or another remixer is never downloaded automatically but offered for you to pick. Names cut off with “…” in the list still match.
+- **Searches the way Soulseek works.** Queries stay plain (no version words, apostrophe words split like Soulseek does, accented and unaccented spellings). Three searches run at once; missing tracks are searched again at growing intervals.
+- **Chooses a good source.** Reliable peers with a free upload slot first, then FLAC > AIFF/WAV > MP3 320. Offline, refusing or stalled peers are replaced by the next one.
+- **Checks quality.** Downloads are verified and the real MP3 bitrate is checked. With ffmpeg installed, the spectrum is scanned for the lowpass “wall” of an MP3 encoder, so FLACs converted from low-bitrate MP3s are rejected. **Find better** looks for a better source for a finished suspect file while keeping the current one.
+- **Screenshot to playlist.** Paste a tracklist screenshot with Ctrl+V; Windows’ built-in text recognition reads it, drops timestamps, turns “Title by Artist” around and opens an editable preview before anything is searched.
+- **Length check from CSV.** With the track lengths in a Spotify/Exportify CSV, previews, cut files and radio edits are not downloaded automatically.
+- **Builds a DJ folder.** Each playlist gets its own folder with the audio files, an `.m3u8`, `rapor.csv` and a **rekordbox XML**. The list order is written to the `tracknumber` tag. Optionally FLAC/WAV are converted to **AIFF** and files are named “Artist - Title”.
+- **Uses your library.** Tracks already on your computer are copied instead of downloaded.
+- **Clean interface.** Filter buttons, a details panel (candidates with differing versions highlighted, manual search, name fixing), tray mode, notifications, dark theme.
 
-- **Doğru sürümü bulur.** Sanatçı, şarkı adı ve sürüm ayrı ayrı doğrulanır. “Original Mix”, “Extended Mix” ve sürümsüz dosya aynı kabul edilir; Club Mix, Dub, Edit, Live veya başka bir remixçi otomatik inmez, seçiminize sunulur. Listede “…” ile kesilmiş adlar da eşleşir.
-- **Soulseek'e uygun arar.** Sorgular sade tutulur (sürüm sözcükleri eklenmez, kesme işaretli sözcükler Soulseek gibi bölünür, aksanlı ve aksansız yazım denenir). Aynı anda 3 arama yapılır; bulunamayanlar artan aralıklarla yeniden aranır.
-- **İyi kaynağı seçer.** Boş slotu olan, güvenilir peer'lar önce; sonra FLAC > AIFF/WAV > MP3 320. Çevrimdışı, reddeden veya takılan peer yerine sıradaki denenir.
-- **Kaliteyi denetler.** İnen dosya doğrulanır; MP3'ün gerçek bitrate'i kontrol edilir. ffmpeg kuruluysa spektrumda MP3 kesme “duvarı” aranır ve düşük bitrate MP3'ten dönüştürülmüş FLAC'lar elenir. Tamamlanmış şüpheli dosyalar için **Daha iyisini bul** mevcut dosyayı koruyarak daha iyi kaynak arar.
-- **Ekran görüntüsünden liste.** Tracklist ekran görüntüsünü Ctrl+V ile yapıştırın; Windows'un yerleşik metin tanıması satırları okur, zaman damgalarını atar, “Şarkı by Sanatçı” biçimini çevirir ve aramadan önce düzeltebileceğiniz bir önizleme açar.
-- **CSV ile süre doğrulaması.** Spotify/Exportify CSV'sindeki süre sayesinde önizleme, kesik dosya ve radio edit otomatik inmez.
-- **DJ klasörü hazırlar.** Her playlist kendi klasöründe: ses dosyaları, `.m3u8`, `rapor.csv` ve **rekordbox XML**. Sıra `tracknumber` etiketine yazılır. İsteğe bağlı olarak FLAC/WAV **AIFF'e** çevrilir ve dosyalar “Sanatçı - Şarkı” diye adlandırılır.
-- **Kütüphanenizi kullanır.** Bilgisayarınızda zaten olan şarkılar indirilmez, kopyalanır.
-- **Sade arayüz.** Filtre düğmeleri, sağda ayrıntı paneli (adaylar, farklı sürüm kırmızıyla vurgulu, elle arama, ad düzeltme), tepside çalışma, bildirimler, koyu tema.
+## Running from source
 
-## Kaynaktan çalıştırma
+Install the dependencies with `pip install -r requirements-gui.txt` on Python 3.10+ and run `python playlist_app.py`. [ffmpeg](https://ffmpeg.org/) (e.g. `winget install Gyan.FFmpeg`) is recommended for the spectrum check and AIFF conversion; without it these two features are off.
 
-Python 3.10+ ortamında `pip install -r requirements-gui.txt` ile bağımlılıkları kurun ve `python playlist_app.py` çalıştırın. Spektrum kontrolü ve AIFF dönüşümü için [ffmpeg](https://ffmpeg.org/) (ör. `winget install Gyan.FFmpeg`) önerilir; yoksa bu iki özellik kapalı kalır.
-
-| Dosya | Görev |
+| File | Purpose |
 |---|---|
-| `matching.py` | Liste ayrıştırma, sütun algılama, sorgu planı, puanlama, kalite |
-| `slskd_api.py` | slskd REST istemcisi |
-| `audio.py` | Ses doğrulama, etiketler, spektrum, AIFF dönüşümü |
-| `ocr.py` | Ekran görüntüsünden metin (Windows OCR) |
-| `store.py` | SQLite şeması ve kayıtlar |
-| `engine.py` | Arama, peer seçimi, transfer izleme, teslim |
-| `playlist_app.py`, `app_setup.py` | Qt arayüzü ve ayarlar |
+| `matching.py` | List parsing, column detection, query plan, scoring, quality |
+| `slskd_api.py` | slskd REST client |
+| `audio.py` | Audio checks, tags, spectrum, AIFF conversion |
+| `ocr.py` | Text from screenshots (Windows OCR) |
+| `store.py` | SQLite schema and records |
+| `engine.py` | Searching, peer choice, transfer tracking, delivery |
+| `i18n.py` | Turkish / English interface text |
+| `playlist_app.py`, `app_setup.py` | Qt interface and settings |
 
-Testler: `python -m unittest test_playlist test_slskd_runtime test_distribution` ve `python gui_smoke.py`. Çalışan slskd'de indirmesiz arama denemesi: `python live_search_check.py "Sanatçı - Şarkı"`. Windows paketini üretmek için `requirements-build.txt` ve `python build_release.py` kullanın.
+Tests: `python -m unittest test_playlist test_slskd_runtime test_distribution test_i18n` and `python gui_smoke.py`. A download-free search against a running slskd: `python live_search_check.py "Artist - Title"`. To build the Windows package, use `requirements-build.txt` and `python build_release.py`.
 
-Mac sürümü henüz hazırlanmadı; platforma özgü slskd başlatma, yollar ve paketleme ayrıca uyarlanmalıdır.
+A macOS version is not available yet; starting slskd, paths and packaging need platform-specific work.
 
-Bu repoda kişisel ayarlar, hesap bilgileri, müzik dosyaları, playlistler ve indirme geçmişi bulunmaz. Kaynak kod [MIT lisansı](LICENSE) altındadır. Üçüncü taraf bağımlılıkların lisansları dağıtım paketinde bulunur.
+This repository contains no personal settings, account data, music, playlists or download history. The source code is under the [MIT license](LICENSE). Licenses of third-party dependencies ship with the release package.
+
+---
+
+## Türkçe
+
+Şarkı listelerini (TXT, Spotify/Exportify CSV, panodan yapıştırılan metin veya **tracklist ekran görüntüsü**) [slskd](https://github.com/slskd/slskd) üzerinden Soulseek'te arayan, doğru sürümü bulup sırayla indiren ve her listeyi DJ kullanımına hazır ayrı bir klasörde toplayan Windows masaüstü uygulaması. Yalnızca indirme hakkınız olan içerikler için kullanın. Arayüz Türkçe ve İngilizcedir; Windows dilini izler, Ayarlar'dan değiştirilebilir.
+
+**Kurulum:** [Releases](https://github.com/baranyildizz/soulseek-playlists/releases/latest) bölümünden Windows paketini indirin, ZIP'i açın ve `Soulseek Playlists.exe` ile yanındaki `_internal` klasörünü birlikte tutun. İlk açılışta slskd programını, ayar dosyasını, tamamlanan indirmeler klasörünü ve playlist klasörünü seçin. Ayrıntılar: [PAYLASIM.md](PAYLASIM.md) ve [GUI-KULLANIM.md](GUI-KULLANIM.md). slskd ayrıca kurulur; birçok kullanıcı paylaşımı olmayanlara dosya vermediği için slskd'de bir klasör paylaşmanız önerilir.
+
+**Öne çıkanlar:**
+
+- Sanatçı, şarkı adı ve sürüm ayrı ayrı doğrulanır; Original/Extended Mix aynı sayılır, farklı remix/dub/edit/live seçiminize bırakılır.
+- Soulseek'e uygun sade sorgular, aynı anda 3 arama, bulunamayanlar için otomatik yeniden arama.
+- Güvenilir ve boş slotu olan peer önce; FLAC > AIFF/WAV > MP3 320.
+- Sahte FLAC tespiti (ffmpeg ile) ve **Daha iyisini bul**.
+- Ekran görüntüsünden liste (Ctrl+V), CSV ile süre doğrulaması.
+- Her playlist için klasör, `.m3u8`, `rapor.csv`, rekordbox XML; isteğe bağlı AIFF dönüşümü ve “Sanatçı - Şarkı” dosya adı.
+- Bilgisayarınızda olan şarkılar indirilmez, kopyalanır.
+
+**Kaynaktan çalıştırma:** Python 3.10+ ile `pip install -r requirements-gui.txt`, ardından `python playlist_app.py`. Spektrum kontrolü ve AIFF için ffmpeg önerilir. Testler ve paketleme yukarıdaki İngilizce bölümde.
