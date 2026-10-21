@@ -12,10 +12,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SOURCE_FILES = (
-    'playlist_app.py', 'playlist_core.py', 'downloader.py', 'slskd_runtime.py',
-    'app_setup.py', 'package_check.py', 'package_lifecycle.py', 'requirements.txt', 'requirements-gui.txt',
-    'requirements-build.txt', 'build_release.py', 'test_playlist.py',
-    'test_slskd_runtime.py', 'test_distribution.py', 'PAYLASIM.md', 'LICENSE',
+    'playlist_app.py', 'playlist_core.py', 'matching.py', 'slskd_api.py', 'audio.py', 'store.py', 'engine.py',
+    'slskd_runtime.py', 'app_setup.py', 'package_check.py', 'package_lifecycle.py',
+    'requirements.txt', 'requirements-gui.txt', 'requirements-build.txt', 'build_release.py',
+    'test_playlist.py', 'test_slskd_runtime.py', 'test_distribution.py', 'gui_smoke.py', 'live_search_check.py',
+    'PAYLASIM.md', 'GUI-KULLANIM.md', 'LICENSE',
 )
 
 
@@ -70,7 +71,7 @@ def finalize(release):
     licenses.mkdir(exist_ok=True)
     versions = {}
     for name in ('requests','urllib3','certifi','charset-normalizer','idna','RapidFuzz',
-                 'PyYAML','mutagen','PySide6-Essentials','shiboken6','pyinstaller'):
+                 'PyYAML','mutagen','numpy','PySide6-Essentials','shiboken6','pyinstaller'):
         dist = importlib.metadata.distribution(name)
         versions[name] = dist.version
         for entry in dist.files or ():

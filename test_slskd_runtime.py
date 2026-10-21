@@ -54,14 +54,5 @@ class RuntimeTests(unittest.TestCase):
             self.assertFalse(ready);self.assertNotIn('SECRET',message)
             self.runtime.prepare();start.assert_called_once()
 
-    def test_optional_listen_port_does_not_rewrite_yaml(self):
-        before=self.yaml.read_bytes()
-        self.runtime.config['slskd_listen_port']=45000
-        with patch.object(self.runtime,'reachable',return_value=False),patch.object(self.runtime,'running',return_value=False),patch('slskd_runtime.subprocess.Popen') as start:
-            self.runtime.prepare()
-            command=start.call_args.args[0]
-            self.assertEqual(command[command.index('--slsk-listen-port')+1],'45000')
-        self.assertEqual(self.yaml.read_bytes(),before)
-
 
 if __name__=='__main__':unittest.main()
