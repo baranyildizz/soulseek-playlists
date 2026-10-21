@@ -9,6 +9,7 @@ user in the editable preview before anything is searched.
 """
 from __future__ import annotations
 
+from i18n import tr
 import base64
 import subprocess
 import tempfile
@@ -54,11 +55,11 @@ def recognize_file(path, timeout=60) -> list[str]:
                                     capture_output=True, timeout=timeout, creationflags=_NO_WINDOW,
                                     env=external_environment())
     except (OSError, subprocess.SubprocessError):
-        raise OcrError('Windows metin tanıma çalıştırılamadı.') from None
+        raise OcrError(tr('Windows metin tanıma çalıştırılamadı.')) from None
     if result.returncode != 0:
         if b'no-ocr-language' in result.stderr:
-            raise OcrError('Windows’ta metin tanıma dili yüklü değil (Ayarlar › Zaman ve dil › Dil).')
-        raise OcrError('Ekran görüntüsü okunamadı.')
+            raise OcrError(tr('Windows’ta metin tanıma dili yüklü değil (Ayarlar › Zaman ve dil › Dil).'))
+        raise OcrError(tr('Ekran görüntüsü okunamadı.'))
     return [line.strip() for line in result.stdout.decode('utf-8', errors='replace').splitlines() if line.strip()]
 
 
@@ -68,7 +69,7 @@ def _enlarge(image, folder: Path, ffmpeg: str) -> Path:
     from PySide6.QtGui import QImage
     original = folder / 'original.png'
     if not image.save(str(original), 'PNG'):
-        raise OcrError('Görüntü geçici dosyaya yazılamadı.')
+        raise OcrError(tr('Görüntü geçici dosyaya yazılamadı.'))
     largest = max(1, image.width(), image.height())
     if ffmpeg:
         scale = max(1, min(3, MAX_SIDE // largest))
@@ -92,6 +93,6 @@ def _enlarge(image, folder: Path, ffmpeg: str) -> Path:
 def recognize_image(image, ffmpeg: str = '') -> list[str]:
     """Text lines from a QImage (clipboard or image file)."""
     if image.isNull():
-        raise OcrError('Görüntü okunamadı.')
+        raise OcrError(tr('Görüntü okunamadı.'))
     with tempfile.TemporaryDirectory(prefix='playlist-ocr-') as folder:
         return recognize_file(_enlarge(image, Path(folder), ffmpeg))

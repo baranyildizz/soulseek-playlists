@@ -12,6 +12,7 @@ Vocabulary
 """
 from __future__ import annotations
 
+from i18n import tr
 import re
 import statistics
 import unicodedata
@@ -244,10 +245,10 @@ def _split_lines(path: Path) -> list[tuple[int, list[str], bool]]:
         numbered = bool(_NUMBERED.match(line))
         parts = [p.strip() for p in _SEPARATOR.split(_NUMBERED.sub('', line, count=1))]
         if len(parts) < 2 or not all(parts):
-            raise ValueError(f'Satır {number}: sanatçı ve şarkıyı boşluk-tire-boşluk ile ayırın.')
+            raise ValueError(tr('Satır {number}: sanatçı ve şarkıyı boşluk-tire-boşluk ile ayırın.').format(number=number))
         rows.append((number, parts, numbered))
     if not rows:
-        raise ValueError('TXT dosyasında parça bulunamadı.')
+        raise ValueError(tr('TXT dosyasında parça bulunamadı.'))
     return rows
 
 
@@ -289,7 +290,7 @@ def parse_csv(path) -> list[Track]:
         dialect = csv.excel
     rows = list(csv.reader(text.splitlines(), dialect))
     if not rows:
-        raise ValueError('CSV dosyasında parça bulunamadı.')
+        raise ValueError(tr('CSV dosyasında parça bulunamadı.'))
     header = [h.strip().casefold() for h in rows[0]]
     columns = {}
     for field, names in _CSV_COLUMNS.items():
@@ -298,7 +299,7 @@ def parse_csv(path) -> list[Track]:
                 columns[field] = header.index(name)
                 break
     if 'title' not in columns or 'artist' not in columns:
-        raise ValueError('CSV başlığında şarkı ve sanatçı sütunları bulunamadı (ör. "Track Name", "Artist Name(s)").')
+        raise ValueError(tr('CSV başlığında şarkı ve sanatçı sütunları bulunamadı (ör. "Track Name", "Artist Name(s)").'))
     tracks, seen = [], set()
     for number, row in enumerate(rows[1:], 2):
         def cell(field):
@@ -313,7 +314,7 @@ def parse_csv(path) -> list[Track]:
             tracks.append(track)
             seen.add(track.key)
     if not tracks:
-        raise ValueError('CSV dosyasında parça bulunamadı.')
+        raise ValueError(tr('CSV dosyasında parça bulunamadı.'))
     return tracks
 
 
@@ -554,13 +555,13 @@ def quality(c: Candidate, config: dict | None = None) -> Quality:
     if ext in LOSSLESS_SIZE:
         low, high = LOSSLESS_SIZE[ext]
         if not low <= mb <= high:
-            return Quality(1, False, f'{ext.upper()} boyutu şüpheli ({mb:.1f} MB)')
+            return Quality(1, False, tr('{ext} boyutu şüpheli ({mb} MB)').format(ext=ext.upper(), mb=f'{mb:.1f}'))
         if ext == 'flac':
             return Quality(40, True, 'FLAC')
         return Quality(36 if ext.startswith('aif') else 35, accept_pcm, ext.upper())
     if ext == 'mp3':
         if not 1.5 <= mb <= 80:
-            return Quality(1, False, f'MP3 boyutu şüpheli ({mb:.1f} MB)')
+            return Quality(1, False, tr('{ext} boyutu şüpheli ({mb} MB)').format(ext='MP3', mb=f'{mb:.1f}'))
         rate = c.bitrate
         estimated = None
         if rate is None and c.length:
@@ -568,10 +569,10 @@ def quality(c: Candidate, config: dict | None = None) -> Quality:
         if rate is not None and rate >= minimum:
             return Quality(30, True, f'MP3 {rate}')
         if rate is None and (estimated is None or estimated >= minimum * 0.9):
-            return Quality(25, accept_unknown, 'MP3 bitrate bilinmiyor · indirince doğrulanır')
+            return Quality(25, accept_unknown, tr('MP3 bitrate bilinmiyor · indirince doğrulanır'))
         shown = rate or round(estimated or 0)
-        return Quality(10 + min(9, shown // 40), False, f'MP3 {shown} kbps (düşük)')
-    return Quality(8, False, f'{ext.upper()} · yalnızca elle seçim')
+        return Quality(10 + min(9, shown // 40), False, tr('MP3 {kbps} kbps (düşük)').format(kbps=shown))
+    return Quality(8, False, tr('{ext} · yalnızca elle seçim').format(ext=ext.upper()))
 
 
 def quality_allowed(c: Candidate, manual: bool = False, config: dict | None = None) -> bool:
@@ -686,15 +687,15 @@ def _title_similarity(spec: Spec, options: list) -> float:
 def _version_ok(spec: Spec, name: _Name) -> tuple[bool, str]:
     if spec.version_prefix:
         ok = any(text.startswith(spec.version_prefix) for text in name.version_texts)
-        return ok, '' if ok else 'Sürüm farklı'
+        return ok, '' if ok else tr('Sürüm farklı')
     found = [v for v in name.versions if v]
     if spec.version is None:
-        return (not found), ('Sürüm farklı: ' + ', '.join(sorted(found[0])) if found else '')
+        return (not found), (tr('Sürüm farklı: {version}').format(version=', '.join(sorted(found[0]))) if found else '')
     if any(v == spec.version for v in found):
         return True, ''
     if not found:
-        return False, 'Dosyada istenen sürüm yok: ' + ' '.join(sorted(spec.version))
-    return False, 'Sürüm farklı: ' + ', '.join(sorted(found[0]))
+        return False, tr('Dosyada istenen sürüm yok: {version}').format(version=' '.join(sorted(spec.version)))
+    return False, tr('Sürüm farklı: {version}').format(version=', '.join(sorted(found[0])))
 
 
 def score_candidate(track: Track | Spec, c: Candidate, config: dict | None = None) -> Candidate:
@@ -730,16 +731,16 @@ def score_candidate(track: Track | Spec, c: Candidate, config: dict | None = Non
 
     reasons = []
     if not artist_ok:
-        reasons.append('Sanatçı dosya yolunda yok')
+        reasons.append(tr('Sanatçı dosya yolunda yok'))
     if not title_ok:
-        reasons.append(f'Başlık benzerliği %{similarity:.0f}')
+        reasons.append(tr('Başlık benzerliği %{similarity}').format(similarity=f'{similarity:.0f}'))
     if version_reason:
         reasons.append(version_reason)
     if length_reason:
         reasons.append(length_reason)
     if not q.automatic:
         reasons.append(q.label)
-    c.reason = '; '.join(reasons) or f'Eşleşme doğrulandı · {q.label}'
+    c.reason = '; '.join(reasons) or tr('Eşleşme doğrulandı · {quality}').format(quality=q.label)
     return c
 
 
@@ -753,7 +754,7 @@ def duration_ok(expected: float | None, actual: float | None) -> tuple[bool, str
     if not expected or not actual:
         return True, ''
     if actual < expected * 0.85 - 5:
-        return False, f'Süre kısa ({clock(actual)} < {clock(expected)})'
+        return False, tr('Süre kısa ({actual} < {expected})').format(actual=clock(actual), expected=clock(expected))
     return True, ''
 
 

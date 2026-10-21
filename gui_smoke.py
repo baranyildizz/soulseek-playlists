@@ -159,6 +159,29 @@ with tempfile.TemporaryDirectory() as folder:
                                 'Kolter - Be Real'], real.lines()
         real.grab().save(str(HERE / 'ocr-preview.png'))
         real.reject()
+    # English interface: same data, translated widgets.
+    from i18n import set_language
+    from app_setup import SetupDialog, load_settings
+    set_language('en')
+    english = Window(root, worker)
+    english.receive(store.snapshot())
+    english.show()
+    app.processEvents()
+    assert english.chips['all'].text() == 'All 4' and english.toggle_button.text() == 'Pause'
+    assert english.table.horizontalHeaderItem(0).text() == 'Status'
+    english.set_filter('all')
+    english.table.selectRow(2)
+    app.processEvents()
+    assert english.detail.download.text() == 'Download this'
+    english.grab().save(str(HERE / 'gui-en-preview.png'))
+    settings = SetupDialog(root, load_settings(root))
+    settings.show()
+    app.processEvents()
+    settings.grab().save(str(HERE / 'settings-en-preview.png'))
+    settings.close()
+    english.quitting = True
+    english.close()
+    set_language('tr')
     window.quitting = True
     window.close()
     store.db.close()

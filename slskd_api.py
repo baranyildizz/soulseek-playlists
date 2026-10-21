@@ -5,6 +5,7 @@ server can contain credentials or paths, so they never reach the UI or logs.
 """
 from __future__ import annotations
 
+from i18n import tr
 import os
 from pathlib import Path
 from urllib.parse import quote
@@ -73,9 +74,9 @@ class SlskdApi:
         try:
             response = self.session.request(method, self.base + self.PREFIX + endpoint, timeout=timeout, **kwargs)
         except requests.RequestException:
-            raise ConnectionLost('slskd yanıt vermedi') from None
+            raise ConnectionLost(tr('slskd yanıt vermedi')) from None
         if response.status_code == 401:
-            raise PermissionError('slskd oturumu yenilenmeli')
+            raise PermissionError(tr('slskd oturumu yenilenmeli'))
         if response.status_code >= 400:
             raise ApiError(response.status_code)
         return response
@@ -109,7 +110,7 @@ class SlskdApi:
             payload = self._json('POST', '/session', json={'username': username, 'password': password}) or {}
             token = get_ci(payload, 'token')
             if not token:
-                raise PermissionError('slskd oturum anahtarı alınamadı')
+                raise PermissionError(tr('slskd oturum anahtarı alınamadı'))
             self.session.headers['Authorization'] = f"{get_ci(payload, 'tokenType', 'Bearer')} {token}"
             mode = 'jwt'
         self._request('GET', '/session')

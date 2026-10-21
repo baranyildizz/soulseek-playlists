@@ -16,6 +16,7 @@ Track lifecycle (tracks.status)
 """
 from __future__ import annotations
 
+from i18n import note_text, tr
 import csv
 import json
 import os
@@ -118,9 +119,9 @@ class Engine:
         except (ConnectionLost, PermissionError):
             self.connected = False
             self.next_connect = time.time() + 15
-            self.s.set_setting('connection', 'slskd bağlantısı yenileniyor · işler korunuyor')
+            self.s.set_setting('connection', tr('slskd bağlantısı yenileniyor · işler korunuyor'))
         except ApiError as error:
-            self.s.set_setting('connection', f'slskd hata verdi (HTTP {error.status}) · tekrar denenecek')
+            self.s.set_setting('connection', tr('slskd hata verdi (HTTP {status}) · tekrar denenecek').format(status=error.status))
 
     def connect(self, now) -> bool:
         if now < self.next_connect:
@@ -132,22 +133,22 @@ class Engine:
                 self.s.set_setting('connection', message)
                 return False
         try:
-            self.s.set_setting('connection', 'slskd hazır · oturum açılıyor')
+            self.s.set_setting('connection', tr('slskd hazır · oturum açılıyor'))
             self.api.authenticate()
             if not self.api.server_connected(self.api.server()):
                 self.next_connect = time.time() + 10
-                self.s.set_setting('connection', 'slskd hazır · Soulseek hesabının bağlanması bekleniyor')
+                self.s.set_setting('connection', tr('slskd hazır · Soulseek hesabının bağlanması bekleniyor'))
                 return False
         except PermissionError:
             self.next_connect = time.time() + 30
-            self.s.set_setting('connection', 'slskd oturumu açılamadı · web giriş bilgilerini kontrol edin')
+            self.s.set_setting('connection', tr('slskd oturumu açılamadı · web giriş bilgilerini kontrol edin'))
             return False
         except Exception:
             self.next_connect = time.time() + 20
-            self.s.set_setting('connection', 'slskd bağlantı kontrolü başarısız · 20 sn sonra yeniden denenecek')
+            self.s.set_setting('connection', tr('slskd bağlantı kontrolü başarısız · 20 sn sonra yeniden denenecek'))
             return False
         self.connected = True
-        self.s.set_setting('connection', 'slskd · Soulseek bağlı')
+        self.s.set_setting('connection', tr('slskd · Soulseek bağlı'))
         self.check_shares()
         return True
 
@@ -214,14 +215,17 @@ class Engine:
             # Persist intent before the network call; a lost reply is recovered by polling.
             self.set_track(row, search_id=ident, search_started=now, query=query,
                            search_deadline=now + float(self.config['search_max_wait_seconds']),
-                           detail=f'Aranıyor ({row["variant"] % len(plan) + 1}/{len(plan)}): {query}')
+                           detail=tr('Aranıyor ({n}/{total}): {query}').format(
+                               n=row['variant'] % len(plan) + 1, total=len(plan), query=query))
             self.s.set_setting('next_search', now + float(self.config['search_interval_seconds']))
-            self.s.event(row['job'], f'Aranıyor · {track.artist} — {track.title} · "{query}"')
+            self.s.event(row['job'], tr('Aranıyor · {artist} — {title} · "{query}"').format(
+                artist=track.artist, title=track.title, query=query))
             try:
                 self.api.create_search(ident, query)
             except ApiError as error:
                 self.set_track(row, search_id=None, search_deadline=0,
-                               detail=f'Arama başlatılamadı (HTTP {error.status}); kısa süre sonra tekrar denenecek')
+                               detail=tr('Arama başlatılamadı (HTTP {status}); kısa süre sonra tekrar denenecek').format(
+                                   status=error.status))
                 self.s.set_setting('next_search', now + (60 if error.status == 429 else 15))
                 return
             running += 1
@@ -289,12 +293,13 @@ class Engine:
         else:
             status = 'review' if reviewable else 'not_found'
         eligible = sum(c.eligible for c in scored)
-        label = f'"{row["query"]}"' if row['query'] else 'Önceki sürümden kalan arama'
-        detail = f'{label}: {len(scored)} ses dosyası · {eligible} güvenli eşleşme'
+        label = f'"{row["query"]}"' if row['query'] else tr('Önceki sürümden kalan arama')
+        detail = tr('{label}: {files} ses dosyası · {safe} güvenli eşleşme').format(
+            label=label, files=len(scored), safe=eligible)
         if not full_round and status == 'pending':
-            detail += ' · sıradaki sorgu denenecek'
+            detail += tr(' · sıradaki sorgu denenecek')
         if spec.title_truncated or spec.version_prefix or spec.primary_truncated:
-            detail += ' · TXT\'de ad kesilmiş; kesik kısım ön ek olarak eşleştirildi'
+            detail += tr(' · TXT\'de ad kesilmiş; kesik kısım ön ek olarak eşleştirildi')
         delay = 0
         if full_round and status in ('review', 'not_found'):
             delay = NOT_FOUND_BACKOFF[min(row['rounds'], len(NOT_FOUND_BACKOFF) - 1)]
@@ -303,7 +308,7 @@ class Engine:
         extra = {}
         if row.get('upgrade') and full_round and status in ('review', 'not_found'):
             status, delay, extra = 'done', 0, {'upgrade': 0}
-            detail = 'Daha iyi kaynak bulunamadı; mevcut dosya korundu · ' + detail
+            detail = tr('Daha iyi kaynak bulunamadı; mevcut dosya korundu · ') + detail
         self.set_track(row, search_id=None, search_deadline=0, status=status, detail=detail,
                        variant=0 if full_round else variant, rounds=row['rounds'] + int(full_round),
                        next_search=time.time() + delay, **extra)
@@ -321,7 +326,8 @@ class Engine:
         else:
             status = current
         eligible = sum(c.eligible for c in scored)
-        detail = f'Elle arama "{row["query"]}": {len(scored)} ses dosyası · {eligible} güvenli eşleşme'
+        detail = tr('Elle arama "{query}": {files} ses dosyası · {safe} güvenli eşleşme').format(
+            query=row['query'], files=len(scored), safe=eligible)
         self.set_track(row, search_id=None, search_deadline=0, search_kind='', status=status, detail=detail)
         self.s.event(row['job'], f'{track.artist} — {track.title}: {detail}')
 
@@ -375,7 +381,7 @@ class Engine:
             if not available or (tried >= per_day and not approval):
                 if not active and tried and t['status'] != 'retry_wait' and not t['search_id']:
                     self.set_track(t, status='retry_wait', next_search=min(t['next_search'] or now, now + 1800),
-                                   detail=f'{tried} kaynak denendi; yeni kaynaklar için yeniden aranacak')
+                                   detail=tr('{tried} kaynak denendi; yeni kaynaklar için yeniden aranacak').format(tried=tried))
                 continue
             failures = {r['peer'].casefold(): r['n'] for r in self.s.rows(
                 "SELECT peer, COUNT(*) n FROM attempts WHERE track=? AND status='failed' GROUP BY peer", (t['id'],))}
@@ -401,11 +407,12 @@ class Engine:
             VALUES(?,?,?,?,?,?,?,?,?,?,?)''',
             (ident, t['id'], c.peer, c.filename, c.size, json.dumps(c.to_dict(), ensure_ascii=False), 'submitting',
              '_SoulseekAuto/' + ident, time.time(), int(manual), time.time()))
-        self.s.event(t['job'], f'Peer isteği · {t["title"]} · {c.peer} · {c.extension.upper()} · %{c.score:.0f}')
+        self.s.event(t['job'], tr('Peer isteği · {title} · {peer} · {ext} · %{score}').format(
+            title=t['title'], peer=c.peer, ext=c.extension.upper(), score=f'{c.score:.0f}'))
         self.submit(self.s.one('SELECT * FROM attempts WHERE id=?', (ident,)))
         active = self.active(t['id'])
         self.set_track(t, status='waiting' if active else t['status'],
-                       detail='Peer yanıtı / indirme bekleniyor' if active else t['detail'])
+                       detail=tr('Peer yanıtı / indirme bekleniyor') if active else t['detail'])
 
     def submit(self, a):
         """Send (or re-send with the same batch id) a download request; outcomes are recorded on the attempt."""
@@ -416,7 +423,8 @@ class Engine:
                 return self.recover_submission(a)
             if error.status == 429:          # slskd handles one enqueue at a time; try again on next poll
                 return
-            reason = 'Peer çevrimdışı' if error.status == 404 else f'slskd isteği reddetti (HTTP {error.status})'
+            reason = (tr('Peer çevrimdışı') if error.status == 404
+                      else tr('slskd isteği reddetti (HTTP {status})').format(status=error.status))
             self.s.update('attempts', a['id'], status='failed', detail=reason)
             return
         except ConnectionLost:
@@ -432,9 +440,9 @@ class Engine:
         failures = get_ci(result, 'failures', []) or []
         if failures:
             message = str(get_ci(failures[0], 'message', '') or '')[:120]
-            self.s.update('attempts', a['id'], status='failed', detail='Peer isteği reddetti' + (f': {message}' if message else ''))
+            self.s.update('attempts', a['id'], status='failed', detail=tr('Peer isteği reddetti') + (f': {message}' if message else ''))
         elif time.time() - a['created'] > 120:
-            self.s.update('attempts', a['id'], status='failed', detail='Peer isteği kabul etmedi (boş yanıt)')
+            self.s.update('attempts', a['id'], status='failed', detail=tr('Peer isteği kabul etmedi (boş yanıt)'))
 
     def recover_submission(self, a):
         try:
@@ -476,7 +484,7 @@ class Engine:
                 except ApiError as error:
                     if error.status != 404:
                         raise
-                    self.s.update('attempts', a['id'], status='failed', detail='Transfer slskd kayıtlarında yok')
+                    self.s.update('attempts', a['id'], status='failed', detail=tr('Transfer slskd kayıtlarında yok'))
                     self.dirty_jobs.add(t['job'])
                     continue
             state = str(get_ci(transfer, 'state', ''))
@@ -497,8 +505,9 @@ class Engine:
                     self.forget_transfer(a)
                     if t['status'] != 'done':
                         self.set_track(t, status='waiting' if self.active(t['id']) else 'ready',
-                                       detail='Peer tamamlayamadı; diğer kaynaklar deneniyor')
-                    self.s.event(t['job'], f'Peer sonlandı · {t["title"]} · {a["peer"]} · {state}')
+                                       detail=tr('Peer tamamlayamadı; diğer kaynaklar deneniyor'))
+                    self.s.event(t['job'], tr('Peer sonlandı · {title} · {peer} · {state}').format(
+                        title=t['title'], peer=a['peer'], state=state))
             elif unwanted:
                 if not a['cancel_requested'] or now - a['created'] > 60:
                     self.api.cancel(a['peer'], a['transfer_id'])
@@ -508,8 +517,8 @@ class Engine:
                 if now - progress_at > stall:
                     self.api.cancel(a['peer'], a['transfer_id'])
                     self.s.update('attempts', a['id'], status='failed', cancel_requested=1,
-                                  detail=f'İndirme {int(stall // 60)} dakikadır ilerlemiyor')
-                    self.set_track(t, status='ready', detail='İndirme durdu; başka kaynak deneniyor')
+                                  detail=tr('İndirme {minutes} dakikadır ilerlemiyor').format(minutes=int(stall // 60)))
+                    self.set_track(t, status='ready', detail=tr('İndirme durdu; başka kaynak deneniyor'))
                     continue
                 self.s.update('attempts', a['id'], status='downloading')
                 self.set_track(t, status='downloading', detail=state)
@@ -522,20 +531,21 @@ class Engine:
         path = self.locate(a)
         if not path:
             if a['status'] == 'finishing' and time.time() - (a['progress_at'] or a['created']) > 600:
-                self.s.update('attempts', a['id'], status='failed', detail='Tamamlandı, fakat dosya bulunamadı')
+                self.s.update('attempts', a['id'], status='failed', detail=tr('Tamamlandı, fakat dosya bulunamadı'))
             else:
-                self.s.update('attempts', a['id'], status='finishing', detail='Tamamlandı; dosya aranıyor')
+                self.s.update('attempts', a['id'], status='finishing', detail=tr('Tamamlandı; dosya aranıyor'))
             return
         data = json.loads(a['data'] or '{}')
         minimum = None if a['manual'] or data.get('extension') != 'mp3' else int(self.config['minimum_mp3_bitrate'])
         try:
             self.validator(path, a['size'], minimum)
         except Exception as error:
-            message = str(error) if isinstance(error, ValueError) else 'Dosya doğrulanamadı'
-            self.s.update('attempts', a['id'], status='failed', detail='Doğrulama başarısız: ' + message)
-            self.s.event(t['job'], f'Doğrulama başarısız · {t["title"]} · {message} · dosya silinmedi')
+            message = str(error) if isinstance(error, ValueError) else tr('Dosya doğrulanamadı')
+            self.s.update('attempts', a['id'], status='failed', detail=tr('Doğrulama başarısız: {message}').format(message=message))
+            self.s.event(t['job'], tr('Doğrulama başarısız · {title} · {message} · dosya silinmedi').format(
+                title=t['title'], message=message))
             if t['status'] != 'done':
-                self.set_track(t, status='ready', detail='İnen dosya doğrulanamadı; başka kaynak deneniyor')
+                self.set_track(t, status='ready', detail=tr('İnen dosya doğrulanamadı; başka kaynak deneniyor'))
             return
         self.peer_result(a['peer'], ok=True)
         if t['status'] == 'done' or job['status'] == 'cancelled':
@@ -551,8 +561,9 @@ class Engine:
                 self.s.update('attempts', a['id'], status='failed', detail=reason)
                 self.quarantine(a, path)
                 self.forget_transfer(a)
-                self.set_track(t, status='ready', detail=reason + ' · başka kaynak deneniyor')
-                self.s.event(t['job'], f'{t["title"]} · {reason} · dosya Quarantine klasöründe')
+                self.set_track(t, status='ready', detail=tr('{reason} · başka kaynak deneniyor').format(reason=reason))
+                self.s.event(t['job'], tr('{title} · {reason} · dosya Quarantine klasöründe').format(
+                    title=t['title'], reason=reason))
                 return
         self.deliver(t, path, digest(path), move=True, note=note)
         self.s.update('attempts', a['id'], status='succeeded')
@@ -566,7 +577,7 @@ class Engine:
         """
         ok, short = duration_ok(t.get('duration'), audio_length(path))
         if not ok and not manual:
-            return f'İnen dosya beklenenden kısa: {short}', ''
+            return tr('İnen dosya beklenenden kısa: {short}').format(short=short), ''
         khz = self.spectrum(path)
         if khz is None:
             return None
@@ -576,15 +587,18 @@ class Engine:
             old = self.cutoff_of(t)
             if khz >= threshold or (old is not None and khz >= old + 0.5):
                 return '', note + ('' if khz >= threshold else ' · şüpheli')
-            return f'Daha iyi değil: yeni dosya da {khz:g} kHz\'de kesiliyor', note
+            return tr("Daha iyi değil: yeni dosya da {khz} kHz'de kesiliyor").format(khz=f'{khz:g}'), note
         if khz >= threshold:
             return '', note
         note += ' · şüpheli'
-        earlier = self.s.one("SELECT COUNT(*) n FROM attempts WHERE track=? AND detail LIKE 'Şüpheli kalite%'",
+        # Counted in both languages: the message is stored in whichever was active.
+        earlier = self.s.one("SELECT COUNT(*) n FROM attempts WHERE track=? AND "
+                             "(detail LIKE 'Şüpheli kalite%' OR detail LIKE 'Suspicious quality%')",
                              (t['id'],))['n']
         if manual or earlier >= 2:
             return '', note + ' (daha iyisi bulunamadı)'
-        return (f'Şüpheli kalite: ses {khz:g} kHz\'de kesiliyor (düşük bitrate MP3\'ten dönüştürülmüş olabilir)',
+        return (tr("Şüpheli kalite: ses {khz} kHz'de kesiliyor (düşük bitrate MP3'ten dönüştürülmüş olabilir)").format(
+                    khz=f'{khz:g}'),
                 note)
 
     @staticmethod
@@ -656,7 +670,7 @@ class Engine:
             shutil.copyfile(source, temporary)
             if digest(temporary) != sha:
                 temporary.unlink()
-                raise ValueError('Dosya kopyası doğrulanamadı')
+                raise ValueError(tr('Dosya kopyası doğrulanamadı'))
         tagged = write_track_number(temporary, t['position'])
         self.validator(temporary, 0, None)
         final_sha = digest(temporary)
@@ -670,15 +684,16 @@ class Engine:
             temporary.unlink()
         else:
             temporary.replace(destination)
-        detail = f'Tamamlandı · sıra etiketi: {t["position"]}' if tagged else 'Tamamlandı · sıra etiketi yazılamadı'
+        detail = (tr('Tamamlandı · sıra etiketi: {position}').format(position=t['position']) if tagged
+                  else tr('Tamamlandı · sıra etiketi yazılamadı'))
         if note:
-            detail += f' · spektrum {note}'
+            detail += tr(' · spektrum {note}').format(note=note_text(note))
         replaced = t.get('path') if t.get('upgrade') else ''
         if replaced and Path(replaced).is_file() and Path(replaced).resolve() != destination.resolve():
             keep = self.s.root / 'Quarantine' / ('replaced-' + t['id'])
             keep.mkdir(parents=True, exist_ok=True)
             shutil.move(replaced, str(keep / Path(replaced).name))
-            detail += ' · eski dosya Quarantine klasörüne taşındı'
+            detail += tr(' · eski dosya Quarantine klasörüne taşındı')
         self.s.update('tracks', t['id'], status='done', path=str(destination), hash=final_sha, detail=detail,
                       quality_note=note, upgrade=0)
         self.export(job['id'])
@@ -688,7 +703,7 @@ class Engine:
                 source.parent.rmdir()
             except OSError:
                 pass
-        self.s.event(job['id'], f'Tamamlandı · {t["artist"]} — {t["title"]}')
+        self.s.event(job['id'], tr('Tamamlandı · {artist} — {title}').format(artist=t['artist'], title=t['title']))
 
     def reuse_finished_copy(self, t) -> bool:
         """Copy a verified file already downloaded for another playlist instead of downloading again."""
@@ -714,10 +729,10 @@ class Engine:
                 if not self.s.one("SELECT id FROM tracks WHERE job=? AND status!='skipped' "
                                   "AND (rounds=0 OR search_id IS NOT NULL)", (job['id'],)):
                     self.s.update('jobs', job['id'], status='preview_complete')
-                    self.s.event(job['id'], 'İndirmesiz arama testi tamamlandı.')
+                    self.s.event(job['id'], tr('İndirmesiz arama testi tamamlandı.'))
             elif not self.s.one("SELECT id FROM tracks WHERE job=? AND status NOT IN ('done','skipped')", (job['id'],)):
                 self.s.update('jobs', job['id'], status='completed')
-                self.s.event(job['id'], 'Playlist tamamlandı.')
+                self.s.event(job['id'], tr('Playlist tamamlandı.'))
 
     def export(self, job_id):
         self.dirty_jobs.discard(job_id)
@@ -737,7 +752,7 @@ class Engine:
             self.export_rekordbox(job, present)
         with (folder / 'rapor.csv').open('w', encoding='utf-8-sig', newline='') as stream:
             writer = csv.writer(stream)
-            writer.writerow(['sıra', 'sanatçı', 'şarkı', 'durum', 'dosya', 'açıklama'])
+            writer.writerow([tr('sıra'), tr('sanatçı'), tr('şarkı'), tr('durum'), tr('dosya'), tr('açıklama')])
             for t in tracks:
                 writer.writerow([t['position'], t['artist'], t['title'], t['status'], t['path'], t['detail']])
 
@@ -855,7 +870,8 @@ class Engine:
                 self.deliver(row, path, digest(path), move=False, note='')
             except (OSError, ValueError):
                 continue
-            self.s.event(row['job'], f'Kütüphanede bulundu · {track.artist} — {track.title} · {path.name}')
+            self.s.event(row['job'], tr('Kütüphanede bulundu · {artist} — {title} · {file}').format(
+                artist=track.artist, title=track.title, file=path.name))
             return True
         return False
 
@@ -888,9 +904,9 @@ class Engine:
             return
         if action in ('start', 'pause', 'cancel'):
             self.s.update('jobs', payload, status={'start': 'active', 'pause': 'paused', 'cancel': 'cancelled'}[action])
-            self.s.event(payload, {'start': 'İş sürdürülüyor.',
-                                   'pause': 'Yeni aramalar duraklatıldı. Mevcut transferler izleniyor.',
-                                   'cancel': 'İş iptal edildi; aktif istekler iptal edilecek. Dosyalar korunur.'}[action])
+            self.s.event(payload, {'start': tr('İş sürdürülüyor.'),
+                                   'pause': tr('Yeni aramalar duraklatıldı. Mevcut transferler izleniyor.'),
+                                   'cancel': tr('İş iptal edildi; aktif istekler iptal edilecek. Dosyalar korunur.')}[action])
         elif action == 'retry':
             # Search again now with every query and allow previously tried peers again.
             self.s.set_setting('retry:' + payload, time.time())
@@ -898,66 +914,68 @@ class Engine:
                 status=CASE WHEN status IN ('not_found','review','retry_wait') THEN 'pending' ELSE status END
                 WHERE job=? AND status NOT IN ('done','skipped','deferred') AND search_id IS NULL""", (payload,))
             self.s.update('jobs', payload, status='active')
-            self.s.event(payload, 'Tamamlanmayan parçalar yeniden aranacak; daha önce denenen peer\'lar tekrar denenebilir.')
+            self.s.event(payload, tr('Tamamlanmayan parçalar yeniden aranacak; daha önce denenen peer\'lar tekrar denenebilir.'))
 
     def _manual_search(self, track_id, query):
         query = ' '.join(str(query or '').split())
         t = self.s.one('SELECT * FROM tracks WHERE id=?', (track_id,))
         if not t or not query:
-            raise ValueError('Aranacak metni yazın.')
+            raise ValueError(tr('Aranacak metni yazın.'))
         if t['search_id']:
-            raise ValueError('Bu parça için bir arama zaten sürüyor; birkaç saniye bekleyin.')
+            raise ValueError(tr('Bu parça için bir arama zaten sürüyor; birkaç saniye bekleyin.'))
         ident, now = str(uuid.uuid4()), time.time()
         self.set_track(t, search_id=ident, search_started=now, search_kind='manual', query=query,
                        search_deadline=now + float(self.config['search_max_wait_seconds']),
-                       detail=f'Elle aranıyor: {query}')
-        self.s.event(t['job'], f'Elle arama · {t["artist"]} — {t["title"]} · "{query}"')
+                       detail=tr('Elle aranıyor: {query}').format(query=query))
+        self.s.event(t['job'], tr('Elle arama · {artist} — {title} · "{query}"').format(
+            artist=t['artist'], title=t['title'], query=query))
         try:
             self.api.create_search(ident, query)
         except (ApiError, ConnectionLost):
-            self.set_track(t, search_id=None, search_kind='', detail='Elle arama başlatılamadı; slskd bağlantısını kontrol edin')
-            raise ValueError('Arama başlatılamadı; slskd bağlantısını kontrol edin.') from None
+            self.set_track(t, search_id=None, search_kind='', detail=tr('Elle arama başlatılamadı; slskd bağlantısını kontrol edin'))
+            raise ValueError(tr('Arama başlatılamadı; slskd bağlantısını kontrol edin.')) from None
 
     def _edit_track(self, track_id, artist, title):
         artist, title = ' '.join(str(artist).split()), ' '.join(str(title).split())
         t = self.s.one('SELECT * FROM tracks WHERE id=?', (track_id,))
         if not t or not artist or not title:
-            raise ValueError('Sanatçı ve şarkı adı boş olamaz.')
+            raise ValueError(tr('Sanatçı ve şarkı adı boş olamaz.'))
         if t['status'] == 'done' or self.active(track_id):
-            raise ValueError('Tamamlanan veya inen parçanın adı değiştirilemez.')
+            raise ValueError(tr('Tamamlanan veya inen parçanın adı değiştirilemez.'))
         key = Track(artist, title).key
         if self.s.one('SELECT id FROM tracks WHERE job=? AND key=? AND id!=?', (t['job'], key, track_id)):
-            raise ValueError('Bu playlistte aynı parça zaten var.')
+            raise ValueError(tr('Bu playlistte aynı parça zaten var.'))
         with self.s.db:
             for table in ('approvals', 'track_choices', 'candidates'):
                 self.s.db.execute(f'DELETE FROM {table} WHERE track=?', (track_id,))
             self.s.db.execute("""UPDATE tracks SET artist=?, title=?, key=?, status='pending', rounds=0, variant=0,
-                next_search=0, search_id=NULL, search_kind='', detail='Ad düzeltildi; yeniden aranacak' WHERE id=?""",
-                              (artist, title, key, track_id))
+                next_search=0, search_id=NULL, search_kind='', detail=? WHERE id=?""",
+                              (artist, title, key, tr('Ad düzeltildi; yeniden aranacak'), track_id))
         self.dirty_jobs.add(t['job'])
-        self.s.event(t['job'], f'Ad düzeltildi · {t["artist"]} — {t["title"]} → {artist} — {title}')
+        self.s.event(t['job'], tr('Ad düzeltildi · {old} → {new}').format(
+            old=f"{t['artist']} — {t['title']}", new=f'{artist} — {title}'))
 
     def _rename_job(self, job_id, name):
         name = ' '.join(str(name).split())
         job = self.s.one('SELECT * FROM jobs WHERE id=?', (job_id,))
         if not job or not name:
-            raise ValueError('Playlist adı boş olamaz.')
+            raise ValueError(tr('Playlist adı boş olamaz.'))
         for suffix in ('.m3u8', '.rekordbox.xml'):
             old = Path(job['folder']) / (safe_name(job['name']) + suffix)
             if old.is_file():
                 old.unlink()
         self.s.update('jobs', job_id, name=name)
         self.export(job_id)
-        self.s.event(job_id, f'Playlist yeniden adlandırıldı: {name}')
+        self.s.event(job_id, tr('Playlist yeniden adlandırıldı: {name}').format(name=name))
 
     def _relayout(self, job_id, layout):
         if self.s.one(f"SELECT a.id FROM attempts a JOIN tracks t ON t.id=a.track WHERE t.job=? AND a.status IN "
                       f"({','.join('?' * len(ACTIVE))})", (job_id, *ACTIVE)):
-            raise ValueError('Aktif indirmesi olan playlistin sütun sırası değiştirilemez; önce duraklatıp bekleyin.')
+            raise ValueError(tr('Aktif indirmesi olan playlistin sütun sırası değiştirilemez; önce duraklatıp bekleyin.'))
         if not self.s.relayout_job(job_id, layout):
-            raise ValueError('Liste yeniden okunamadı.')
+            raise ValueError(tr('Liste yeniden okunamadı.'))
         self.dirty_jobs.add(job_id)
-        self.s.event(job_id, 'Sütun sırası değiştirildi; tamamlanmayan parçalar yeniden aranacak.')
+        self.s.event(job_id, tr('Sütun sırası değiştirildi; tamamlanmayan parçalar yeniden aranacak.'))
 
     def _upgrade(self, track_ids):
         """Search a better source for finished tracks; the current file stays until one is verified."""
@@ -970,13 +988,13 @@ class Engine:
                 self.s.db.execute('DELETE FROM approvals WHERE track=?', (track_id,))
                 self.s.db.execute('DELETE FROM track_choices WHERE track=?', (track_id,))
                 self.s.db.execute("""UPDATE tracks SET upgrade=1, status='pending', rounds=0, variant=0, next_search=0,
-                    detail='Daha iyi kaynak aranıyor; mevcut dosya yerinde kalıyor' WHERE id=?""", (track_id,))
+                    detail=? WHERE id=?""", (tr('Daha iyi kaynak aranıyor; mevcut dosya yerinde kalıyor'), track_id))
                 self.s.db.execute("UPDATE jobs SET status='active' WHERE id=? AND status='completed'", (t['job'],))
             self.dirty_jobs.add(t['job'])
-            self.s.event(t['job'], f'Daha iyisi aranıyor · {t["artist"]} — {t["title"]}')
+            self.s.event(t['job'], tr('Daha iyisi aranıyor · {artist} — {title}').format(artist=t['artist'], title=t['title']))
             count += 1
         if not count:
-            raise ValueError('Daha iyi kaynak aranacak tamamlanmış parça yok (aktif indirmesi olanlar atlanır).')
+            raise ValueError(tr('Daha iyi kaynak aranacak tamamlanmış parça yok (aktif indirmesi olanlar atlanır).'))
         return count
 
     def _remove_job(self, job_id):
@@ -993,46 +1011,46 @@ class Engine:
     def _track_choice(self, action, track_id):
         t = self.s.one('SELECT * FROM tracks WHERE id=?', (track_id,))
         if not t or t['status'] == 'done':
-            raise ValueError('Tamamlanan parça bu işlemle değiştirilemez.')
+            raise ValueError(tr('Tamamlanan parça bu işlemle değiştirilemez.'))
         if self.active(track_id):
-            raise ValueError('Bu parçanın aktif transferi var; transfer bittikten sonra seçebilirsiniz.')
+            raise ValueError(tr('Bu parçanın aktif transferi var; transfer bittikten sonra seçebilirsiniz.'))
         with self.s.db:
             self.s.db.execute('DELETE FROM approvals WHERE track=?', (track_id,))
             if action == 'restore_track':
                 self.s.db.execute('DELETE FROM track_choices WHERE track=?', (track_id,))
                 self.s.db.execute("UPDATE tracks SET status='pending', next_search=0, variant=0, "
-                                  "detail='Tekrar işleme alındı' WHERE id=?", (track_id,))
+                                  "detail=? WHERE id=?", (tr('Tekrar işleme alındı'), track_id))
                 self.s.db.execute("UPDATE jobs SET status='active' WHERE id=? AND status='completed'", (t['job'],))
             else:
                 choice = 'skipped' if action == 'skip_track' else 'deferred'
                 self.s.db.execute('INSERT OR REPLACE INTO track_choices VALUES(?,?,?,?)',
                                   (track_id, choice, t['status'], time.time()))
                 self.s.db.execute('UPDATE tracks SET status=?, detail=? WHERE id=?',
-                                  (choice, 'Kullanıcı kararı; adaylar korundu', track_id))
+                                  (choice, tr('Kullanıcı kararı; adaylar korundu'), track_id))
         self.dirty_jobs.add(t['job'])
-        self.s.event(t['job'], f"{t['title']} · " + {'skip_track': 'Atlandı (Pass)', 'defer_track': 'Seçim sonraya bırakıldı',
-                                                    'restore_track': 'Tekrar işleme alındı'}[action])
+        self.s.event(t['job'], f"{t['title']} · " + {'skip_track': tr('Atlandı (Pass)'), 'defer_track': tr('Seçim sonraya bırakıldı'),
+                                                    'restore_track': tr('Tekrar işleme alındı')}[action])
 
     def _approve(self, payload):
         row = self.s.one('SELECT * FROM candidates WHERE id=? AND track=?', (payload['candidate'], payload['track']))
         t = self.s.one('SELECT * FROM tracks WHERE id=?', (payload['track'],))
         if not row or not t or t['status'] == 'done':
-            raise ValueError('Aday artık seçilemiyor; listeyi yenileyin.')
+            raise ValueError(tr('Aday artık seçilemiyor; listeyi yenileyin.'))
         if self.active(t['id']):
-            raise ValueError('Bu parçanın aktif transferi var; seçim için tamamlanmasını bekleyin.')
+            raise ValueError(tr('Bu parçanın aktif transferi var; seçim için tamamlanmasını bekleyin.'))
         job = self.s.one('SELECT * FROM jobs WHERE id=?', (t['job'],))
         if job['mode'] == 'preview' or job['status'] == 'cancelled':
-            raise ValueError('Arama testi / iptal edilen iş için indirme seçilemez.')
+            raise ValueError(tr('Arama testi / iptal edilen iş için indirme seçilemez.'))
         if not quality_allowed(Candidate.from_dict(json.loads(row['data'])), manual=True):
-            raise ValueError('Seçilen dosya bir ses dosyası değil.')
+            raise ValueError(tr('Seçilen dosya bir ses dosyası değil.'))
         with self.s.db:
             self.s.db.execute('INSERT OR REPLACE INTO approvals VALUES(?,?,?)', (t['id'], row['id'], time.time()))
             self.s.db.execute('DELETE FROM track_choices WHERE track=?', (t['id'],))
             self.s.db.execute("UPDATE jobs SET status='active' WHERE id=? AND status='completed'", (t['job'],))
-            self.s.db.execute("UPDATE tracks SET status='ready', detail='Seçtiğiniz aday sıraya alındı; iş "
-                              "duraklatılmışsa sürdürün.' WHERE id=?", (t['id'],))
+            self.s.db.execute("UPDATE tracks SET status='ready', detail=? WHERE id=?",
+                              (tr('Seçtiğiniz aday sıraya alındı; iş duraklatılmışsa sürdürün.'), t['id']))
         self.dirty_jobs.add(t['job'])
-        self.s.event(t['job'], f"Kullanıcı seçimi · {t['title']} · {row['peer']}")
+        self.s.event(t['job'], tr('Kullanıcı seçimi · {title} · {peer}').format(title=t['title'], peer=row['peer']))
 
     # ------------------------------------------------------------------ upgrades of existing data
     def migrate(self):
@@ -1060,7 +1078,8 @@ class Engine:
                     f"({','.join('?' * len(ACTIVE))})", (job['id'], *ACTIVE)):
                 changed = self.s.relayout_job(job['id'], detected)
                 if changed:
-                    self.s.event(job['id'], f'Sütun sırası otomatik düzeltildi ({changed} parça yeniden okunacak).')
+                    self.s.event(job['id'], tr('Sütun sırası otomatik düzeltildi ({changed} parça yeniden okunacak).').format(
+                        changed=changed))
                     continue
             if stored and not job.get('layout'):
                 self.s.update('jobs', job['id'], layout=stored)
@@ -1079,8 +1098,8 @@ class Engine:
                 self.s.db.execute('UPDATE candidates SET data=?, score=?, eligible=? WHERE id=?',
                                   (json.dumps(c.to_dict(), ensure_ascii=False), c.score, int(c.eligible), r['id']))
             self.s.db.execute("""UPDATE tracks SET status='pending', rounds=0, variant=0, next_search=0,
-                detail='Yeni eşleştirme ile yeniden aranacak' WHERE status IN ('not_found','review','retry_wait')
-                AND search_id IS NULL""")
+                detail=? WHERE status IN ('not_found','review','retry_wait')
+                AND search_id IS NULL""", (tr('Yeni eşleştirme ile yeniden aranacak'),))
 
     def _recover_rejected_files(self):
         """Files rejected by the old validator (e.g. FLAC without a length) are checked again."""
@@ -1094,6 +1113,6 @@ class Engine:
                     continue
                 self.validator(path, a['size'], None)
                 self.deliver(t, path, digest(path), move=True)
-                self.s.update('attempts', a['id'], status='succeeded', detail='Yeniden doğrulandı')
+                self.s.update('attempts', a['id'], status='succeeded', detail=tr('Yeniden doğrulandı'))
             except (OSError, ValueError):
                 continue
