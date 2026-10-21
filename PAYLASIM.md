@@ -10,7 +10,8 @@ Sonradan üstteki **Ayarlar** düğmesiyle değiştirilebilir; değişiklik yeni
 
 slskd ayrı kurulur: https://github.com/slskd/slskd/releases
 Kendi Soulseek hesabınızı slskd'nin kendi ayarlarında tanımlayın.
-Uygulama mevcut slskd.yml dosyasını değiştirmez; kayıtlı web erişim ayarlarını okur.
+Uygulama mevcut slskd.yml dosyasını değiştirmez; kayıtlı web erişim ayarlarını okur
+(tanımlı değilse slskd'nin varsayılan web girişi kullanılır).
 Gerekirse SLSKD_API_KEY veya SLSKD_WEB_USERNAME / SLSKD_WEB_PASSWORD ortam değişkenleri kullanılabilir.
 API erişimi için slskd web kimlik bilgileri kullanılır; Soulseek parolası bu uygulamaya girilmez.
 İlk kurulumda **Bağlantıyı kontrol et** ile durumu görün. slskd yeni başlatılıyorsa birkaç saniye sonra tekrar deneyin.
@@ -19,9 +20,15 @@ slskd dinleme portu Windows tarafından ayrılmışsa Ayarlar'daki isteğe bağl
 Soulseek giriş portunu boş bir portla değiştirin. Bu ayar slskd.yml dosyasını değiştirmez;
 yalnızca uygulamanın slskd'yi başlatırken verdiği portu değiştirir.
 
-**+ TXT** ile liste ekleyin veya sürükleyin. Önce önizleme modunda küçük bir liste deneyin.
-Her playlist, TXT adındaki ayrı klasöre kaydedilir. Dosya adına sıra numarası eklenmez;
-sıra, ses dosyasının tracknumber etiketine yazılır. Uygulamayı kapatıp açınca işler korunur.
+**+ Ekle** ile TXT veya CSV (ör. Spotify için Exportify) ekleyin, dosyayı sürükleyin ya da
+şarkı listesini pencerede Ctrl+V ile yapıştırın. Önce “yalnızca ara” seçeneğiyle küçük bir liste deneyin.
+Her playlist ayrı bir klasöre kaydedilir (ses dosyaları, .m3u8, rapor.csv, rekordbox XML).
+Sıra, ses dosyasının tracknumber etiketine yazılır. Uygulamayı kapatıp açınca işler korunur.
+Arayüzün tamamı için GUI-KULLANIM.md dosyasına bakın.
+
+İsteğe bağlı: ffmpeg kuruluysa (winget install Gyan.FFmpeg) sahte FLAC kontrolü ve AIFF
+dönüşümü açılır. slskd'de bir klasör paylaşmanız önerilir; birçok kullanıcı paylaşımı
+olmayanlara dosya vermez (slskd.yml içinde shares: directories:).
 Pencereyi kapatmak tepsiye küçültür. Tamamen durdurmak için tepsi menüsünden **Tamamen çık** seçin.
 
 Ayarlar ve iş geçmişi `%LOCALAPPDATA%\SoulseekPlaylists` altında tutulur.

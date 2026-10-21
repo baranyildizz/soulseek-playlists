@@ -53,6 +53,11 @@ class DistributionTests(unittest.TestCase):
         forbidden = {'config.json','ui.ini','songs.txt','state.json','playlists.sqlite3','slskd.yml'}
         self.assertFalse(forbidden.intersection(SOURCE_FILES))
         self.assertTrue(all(Path(name).name == name for name in SOURCE_FILES))
+        # Every module the app imports must ship in the source package.
+        root = Path(__file__).resolve().parent
+        for module in ('matching', 'slskd_api', 'audio', 'store', 'engine', 'playlist_core'):
+            self.assertIn(module + '.py', SOURCE_FILES)
+            self.assertTrue((root / (module + '.py')).is_file())
 
     def test_build_does_not_search_unrelated_host_tools(self):
         from build_release import clean_environment

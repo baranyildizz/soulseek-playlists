@@ -52,14 +52,13 @@ def delivery_check(sample, output):
 
 def connection_check(config_path, output):
     """Read-only real API probe. Never serialize credentials or response bodies."""
-    from playlist_core import Api
-    import logging
+    from slskd_api import SlskdApi
     api = None
     result = {'passed': False, 'authenticated': False, 'connected': False}
     try:
         config = json.loads(Path(config_path).read_text(encoding='utf-8'))
         config['prompt_for_web_credentials'] = False
-        api = Api(config, logging.getLogger('package-connection'))
+        api = SlskdApi(config)
         api.authenticate()
         result['authenticated'] = True
         result['connected'] = api.server_connected(api.server())
