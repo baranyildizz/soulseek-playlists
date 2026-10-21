@@ -13,22 +13,24 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QSettings, QSize, QRectF
 from PySide6.QtGui import (QColor, QDesktopServices, QIcon, QPainter, QPixmap, QPalette, QPen, QPainterPath,
-                           QKeySequence, QShortcut, QTextDocument, QAbstractTextDocumentLayout)
+                           QKeySequence, QShortcut, QTextDocument, QAbstractTextDocumentLayout, QImage)
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget,
     QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView, QSplitter, QFileDialog, QDialog, QComboBox,
     QDialogButtonBox, QPlainTextEdit, QMessageBox, QProgressBar, QSystemTrayIcon, QMenu, QAbstractItemView,
     QFrame, QLineEdit, QSizePolicy, QSizeGrip, QToolButton, QButtonGroup, QCheckBox, QInputDialog,
-    QStyledItemDelegate, QStyle, QFormLayout,
+    QStyledItemDelegate, QStyle, QFormLayout, QScrollArea,
 )
-from audio import audio_metadata
+from audio import audio_metadata, find_ffmpeg
 from engine import Engine
 from matching import (Candidate, Track, clock, detect_layout, mismatch_html, parse_tracks, quality_allowed,
-                      quality_label, queries)
+                      quality_label, queries, tracklist_from_ocr)
+from ocr import OcrError, recognize_image
 from store import Store
 from app_setup import data_root, load_settings, SetupDialog
 
 ROOT = data_root()
+IMAGE_SUFFIXES = ('.png', '.jpg', '.jpeg', '.bmp', '.webp')
 ACTIVE_ATTEMPTS = ('queued', 'downloading', 'finishing', 'submitting')
 # Filter chips: key -> (label, track statuses)
 FILTERS = [
@@ -417,6 +419,108 @@ class ImportDialog(QDialog):
             self.ok.setEnabled(False)
 
 
+class OcrThread(QThread):
+    done = Signal(list)
+    failed = Signal(str)
+
+    def __init__(self, image, recognize):
+        super().__init__()
+        self.image = image
+        self.recognize = recognize
+
+    def run(self):
+        try:
+            self.done.emit(tracklist_from_ocr(self.recognize(self.image)))
+        except OcrError as e:
+            self.failed.emit(str(e))
+        except Exception:
+            self.failed.emit('Ekran görüntüsü okunamadı.')
+
+
+class OcrDialog(QDialog):
+    """Screenshot → Windows OCR → editable "Artist - Title" lines → new playlist."""
+    def __init__(self, image, parent=None, recognize=None):
+        super().__init__(parent)
+        self.setWindowTitle('Ekran görüntüsünden playlist')
+        self.resize(1080, 640)
+        box = QVBoxLayout(self)
+        form = QFormLayout()
+        self.name = QLineEdit(time.strftime('Ekran görüntüsü %Y-%m-%d %H.%M'))
+        form.addRow('Playlist adı', self.name)
+        box.addLayout(form)
+        row = QHBoxLayout()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        picture = QLabel()
+        picture.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        pixmap = QPixmap.fromImage(image)
+        picture.setPixmap(pixmap if pixmap.width() <= 520 else pixmap.scaledToWidth(520, Qt.TransformationMode.SmoothTransformation))
+        scroll.setWidget(picture)
+        row.addWidget(scroll, 1)
+        right = QVBoxLayout()
+        hint = QLabel('Her satır bir parça: <b>Sanatçı - Şarkı</b>. Metin tanıma “I/1”, “rn/m” gibi harfleri '
+                      'karıştırabilir; aramadan önce adları göz ucuyla kontrol edin.')
+        hint.setWordWrap(True)
+        right.addWidget(hint)
+        self.text = QPlainTextEdit()
+        self.text.setPlaceholderText('Okunuyor…')
+        self.text.setEnabled(False)
+        self.text.textChanged.connect(self.validate)
+        right.addWidget(self.text, 1)
+        self.summary = QLabel('Windows metin tanıma çalışıyor…')
+        self.summary.setWordWrap(True)
+        right.addWidget(self.summary)
+        row.addLayout(right, 1)
+        box.addLayout(row, 1)
+        self.search_only = QCheckBox('Önce yalnızca ara — hiçbir dosya indirme')
+        box.addWidget(self.search_only)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText('Playlist oluştur')
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText('Vazgeç')
+        self.ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.ok.setEnabled(False)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        box.addWidget(buttons)
+        if recognize is None:
+            ffmpeg = find_ffmpeg(str(load_settings_safe(ROOT).get('ffmpeg_path') or ''))
+            recognize = lambda img: recognize_image(img, ffmpeg)
+        self.thread = OcrThread(image, recognize)
+        self.thread.done.connect(self.loaded)
+        self.thread.failed.connect(self.failed)
+        self.thread.start()
+
+    def loaded(self, lines):
+        self.text.setEnabled(True)
+        self.text.setPlainText('\n'.join(lines))
+        self.text.setFocus()
+        self.validate()
+
+    def failed(self, message):
+        self.text.setEnabled(True)
+        self.summary.setText(message + ' Listeyi elle yazabilir veya yapıştırabilirsiniz.')
+
+    def lines(self):
+        return [line.strip() for line in self.text.toPlainText().splitlines() if line.strip()]
+
+    def validate(self):
+        lines = self.lines()
+        bad = [i for i, line in enumerate(lines, 1) if not re.search(r'\s[-–—]\s', line)]
+        if not lines:
+            self.summary.setText('Parça bulunamadı.')
+        elif bad:
+            self.summary.setText(f'{len(lines)} satır · ayırıcısı olmayan satır: ' + ', '.join(map(str, bad[:12]))
+                                 + ' (“Sanatçı - Şarkı” biçiminde düzeltin veya silin)')
+        else:
+            self.summary.setText(f'{len(lines)} parça hazır.')
+        self.ok.setEnabled(bool(lines) and not bad)
+
+    def done(self, result):
+        if self.thread.isRunning():
+            self.thread.wait(5000)
+        super().done(result)
+
+
 class DetailPanel(QFrame):
     """Everything about the selected track: why, candidates, manual search and choices."""
     def __init__(self, window):
@@ -754,7 +858,7 @@ class Window(QMainWindow):
         left_head.addWidget(QLabel('PLAYLISTLER'))
         left_head.addStretch()
         add = QPushButton('+ Ekle')
-        add.setToolTip('TXT veya CSV ekleyin, pencereye sürükleyin ya da Ctrl+V ile listeyi yapıştırın')
+        add.setToolTip('TXT, CSV veya ekran görüntüsü ekleyin, pencereye sürükleyin ya da Ctrl+V ile yapıştırın')
         add.setObjectName('primary')
         add.clicked.connect(self.choose)
         left_head.addWidget(add)
@@ -770,7 +874,7 @@ class Window(QMainWindow):
         self.jobs.customContextMenuRequested.connect(
             lambda pos: self.job_menu().exec(self.jobs.viewport().mapToGlobal(pos)) if self.jobs.itemAt(pos) else None)
         panel_layout.addWidget(self.jobs, 1)
-        hint = QLabel('TXT / CSV bırakın veya Ctrl+V ile yapıştırın.')
+        hint = QLabel('TXT, CSV veya ekran görüntüsü bırakın; ya da Ctrl+V ile yapıştırın.')
         hint.setWordWrap(True)
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setObjectName('muted')
@@ -994,22 +1098,40 @@ class Window(QMainWindow):
 
     def choose(self):
         paths, _ = QFileDialog.getOpenFileNames(self, 'Playlist seç', str(self.root),
-                                                'Şarkı listesi (*.txt *.csv)')
+                                                'Şarkı listesi veya ekran görüntüsü (*.txt *.csv *.png *.jpg *.jpeg *.bmp *.webp)')
         for path in paths:
-            self.import_path(path)
+            self.import_any(path)
 
     def import_path(self, path, name=None):
         dialog = ImportDialog(path, self, name)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.send('import', dialog.payload())
 
+    def import_screenshot(self, image):
+        dialog = OcrDialog(image, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            folder = self.root / 'imports'
+            folder.mkdir(exist_ok=True)
+            path = folder / f'ocr-{int(time.time())}.txt'
+            path.write_text('\n'.join(dialog.lines()) + '\n', encoding='utf-8')
+            self.send('import', {'source': str(path), 'layout': 'auto', 'name': dialog.name.text().strip(),
+                                 'mode': 'preview' if dialog.search_only.isChecked() else 'fast'})
+
     def paste_list(self):
         if QApplication.focusWidget() and isinstance(QApplication.focusWidget(), (QLineEdit, QPlainTextEdit)):
             return
+        mime = QApplication.clipboard().mimeData()
+        if mime is not None and mime.hasImage():
+            image = QApplication.clipboard().image()
+            if not image.isNull():
+                self.import_screenshot(image)
+                return
         text = QApplication.clipboard().text().strip()
-        if not any(re.search(r'\s[-–—]\s', line) for line in text.splitlines()):
-            QMessageBox.information(self, 'Yapıştır', 'Panoda "Sanatçı - Şarkı" satırları bulunamadı.')
+        lines = tracklist_from_ocr(text.splitlines())    # also turns "Title by Artist" around
+        if not any(re.search(r'\s[-–—]\s', line) for line in lines):
+            QMessageBox.information(self, 'Yapıştır', 'Panoda "Sanatçı - Şarkı" satırları veya ekran görüntüsü bulunamadı.')
             return
+        text = '\n'.join(lines)
         folder = self.root / 'imports'
         folder.mkdir(exist_ok=True)
         name = time.strftime('Pano %Y-%m-%d %H.%M')
@@ -1018,14 +1140,21 @@ class Window(QMainWindow):
         self.import_path(path, name)
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls() and any(u.isLocalFile() and u.toLocalFile().lower().endswith(('.txt', '.csv'))
-                                              for u in event.mimeData().urls()):
+        if event.mimeData().hasUrls() and any(
+                u.isLocalFile() and u.toLocalFile().lower().endswith(('.txt', '.csv') + IMAGE_SUFFIXES)
+                for u in event.mimeData().urls()):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
         for url in event.mimeData().urls():
-            if url.isLocalFile() and url.toLocalFile().lower().endswith(('.txt', '.csv')):
-                self.import_path(url.toLocalFile())
+            if url.isLocalFile():
+                self.import_any(url.toLocalFile())
+
+    def import_any(self, path):
+        if path.lower().endswith(IMAGE_SUFFIXES):
+            self.import_screenshot(QImage(path))
+        elif path.lower().endswith(('.txt', '.csv')):
+            self.import_path(path)
 
     # ---------------------------------------------------------------- playlist actions
     def job_menu(self):

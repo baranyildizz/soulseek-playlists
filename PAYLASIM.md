@@ -21,7 +21,7 @@ Soulseek giriş portunu boş bir portla değiştirin. Bu ayar slskd.yml dosyası
 yalnızca uygulamanın slskd'yi başlatırken verdiği portu değiştirir.
 
 **+ Ekle** ile TXT veya CSV (ör. Spotify için Exportify) ekleyin, dosyayı sürükleyin ya da
-şarkı listesini pencerede Ctrl+V ile yapıştırın. Önce “yalnızca ara” seçeneğiyle küçük bir liste deneyin.
+şarkı listesini ya da tracklist ekran görüntüsünü pencerede Ctrl+V ile yapıştırın. Önce “yalnızca ara” seçeneğiyle küçük bir liste deneyin.
 Her playlist ayrı bir klasöre kaydedilir (ses dosyaları, .m3u8, rapor.csv, rekordbox XML).
 Sıra, ses dosyasının tracknumber etiketine yazılır. Uygulamayı kapatıp açınca işler korunur.
 Arayüzün tamamı için GUI-KULLANIM.md dosyasına bakın.

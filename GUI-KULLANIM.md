@@ -13,6 +13,10 @@ dosyasını değiştirmez, parolaları hiçbir yere yazmaz.
 - **CSV** (ör. Spotify için Exportify çıktısı): şarkı, sanatçı, albüm ve **süre** sütunları
   başlıktan bulunur. Süre bilinince önizleme, kesik dosya ve radio edit gibi kısa
   sürümler otomatik indirilmez; daha uzun (extended) sürümler kabul edilir.
+- **Ekran görüntüsü:** tracklist ekran görüntüsünü pencerede **Ctrl+V** ile yapıştırın veya resim
+  dosyasını bırakın. Windows’un yerleşik metin tanıması satırları okur; zaman damgaları atılır,
+  “Şarkı by Sanatçı” biçimi çevrilir. Açılan pencerede listeyi düzeltip playlisti oluşturun —
+  metin tanıma “I/1”, “rn/m” gibi harfleri karıştırabilir, aramadan önce bir göz atın.
 - Playlist adını içe aktarırken değiştirebilirsiniz. **Önce yalnızca ara** seçilirse
   hiçbir dosya inmez; ne bulunacağını görmek için kullanın.
 

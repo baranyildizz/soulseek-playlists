@@ -24,6 +24,7 @@ Bu beta sürüm kod imzası taşımaz; Windows güvenlik uyarısı gösterebilir
 - **Soulseek'e uygun arar.** Sorgular sade tutulur (sürüm sözcükleri eklenmez, kesme işaretli sözcükler Soulseek gibi bölünür, aksanlı ve aksansız yazım denenir). Aynı anda 3 arama yapılır; bulunamayanlar artan aralıklarla yeniden aranır.
 - **İyi kaynağı seçer.** Boş slotu olan, güvenilir peer'lar önce; sonra FLAC > AIFF/WAV > MP3 320. Çevrimdışı, reddeden veya takılan peer yerine sıradaki denenir.
 - **Kaliteyi denetler.** İnen dosya doğrulanır; MP3'ün gerçek bitrate'i kontrol edilir. ffmpeg kuruluysa spektrumda MP3 kesme “duvarı” aranır ve düşük bitrate MP3'ten dönüştürülmüş FLAC'lar elenir. Tamamlanmış şüpheli dosyalar için **Daha iyisini bul** mevcut dosyayı koruyarak daha iyi kaynak arar.
+- **Ekran görüntüsünden liste.** Tracklist ekran görüntüsünü Ctrl+V ile yapıştırın; Windows'un yerleşik metin tanıması satırları okur, zaman damgalarını atar, “Şarkı by Sanatçı” biçimini çevirir ve aramadan önce düzeltebileceğiniz bir önizleme açar.
 - **CSV ile süre doğrulaması.** Spotify/Exportify CSV'sindeki süre sayesinde önizleme, kesik dosya ve radio edit otomatik inmez.
 - **DJ klasörü hazırlar.** Her playlist kendi klasöründe: ses dosyaları, `.m3u8`, `rapor.csv` ve **rekordbox XML**. Sıra `tracknumber` etiketine yazılır. İsteğe bağlı olarak FLAC/WAV **AIFF'e** çevrilir ve dosyalar “Sanatçı - Şarkı” diye adlandırılır.
 - **Kütüphanenizi kullanır.** Bilgisayarınızda zaten olan şarkılar indirilmez, kopyalanır.
@@ -38,6 +39,7 @@ Python 3.10+ ortamında `pip install -r requirements-gui.txt` ile bağımlılık
 | `matching.py` | Liste ayrıştırma, sütun algılama, sorgu planı, puanlama, kalite |
 | `slskd_api.py` | slskd REST istemcisi |
 | `audio.py` | Ses doğrulama, etiketler, spektrum, AIFF dönüşümü |
+| `ocr.py` | Ekran görüntüsünden metin (Windows OCR) |
 | `store.py` | SQLite şeması ve kayıtlar |
 | `engine.py` | Arama, peer seçimi, transfer izleme, teslim |
 | `playlist_app.py`, `app_setup.py` | Qt arayüzü ve ayarlar |
