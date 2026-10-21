@@ -11,7 +11,9 @@ from PySide6.QtWidgets import QApplication
 
 from engine import Engine
 from matching import Candidate
-from playlist_app import STYLE, ImportDialog, Window, Worker
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont, QImage, QPainter
+from playlist_app import STYLE, ImportDialog, OcrDialog, Window, Worker
 from store import Store
 
 HERE = Path(__file__).parent
@@ -127,6 +129,36 @@ with tempfile.TemporaryDirectory() as folder:
     dialog = ImportDialog(csv_source, window)
     assert dialog.ok.isEnabled() and dialog.preview.item(0, 2).text() == '3:05'
     assert dialog.payload()['layout'] == 'csv'
+    # Screenshot import: editable preview from OCR lines (stubbed, then real Windows OCR).
+    def wait(dialog):
+        deadline = time.time() + 60
+        while dialog.thread.isRunning() and time.time() < deadline:
+            app.processEvents()
+            time.sleep(0.05)
+        app.processEvents()
+
+    image = QImage(900, 160, QImage.Format.Format_RGB32)
+    image.fill(QColor('#1e1e1e'))
+    painter = QPainter(image)
+    painter.setPen(QColor('#e6e6e6'))
+    painter.setFont(QFont('Segoe UI', 13))
+    for row, text in enumerate(['00:00:00 Disco Party Baby (Original Mix) by Vampire Sex',
+                                '00:03:12 Tell Me by Marius Acke', '00:06:20 Be Real by Kolter']):
+        painter.drawText(12, 40 + row * 40, text)
+    painter.end()
+    dialog = OcrDialog(image, window, recognize=lambda img: ['00:00:00 Tell Me by Marius Acke', '01', 'Kolter - Be Real'])
+    wait(dialog)
+    assert dialog.lines() == ['Marius Acke - Tell Me', 'Kolter - Be Real'] and dialog.ok.isEnabled()
+    dialog.text.setPlainText('Marius Acke - Tell Me\nBe Real Kolter')
+    assert not dialog.ok.isEnabled() and 'ayırıcısı olmayan satır: 2' in dialog.summary.text()
+    dialog.reject()
+    if os.name == 'nt':
+        real = OcrDialog(image, window)
+        wait(real)
+        assert real.lines() == ['Vampire Sex - Disco Party Baby (Original Mix)', 'Marius Acke - Tell Me',
+                                'Kolter - Be Real'], real.lines()
+        real.grab().save(str(HERE / 'ocr-preview.png'))
+        real.reject()
     window.quitting = True
     window.close()
     store.db.close()

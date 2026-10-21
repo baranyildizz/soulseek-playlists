@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from audio import NO_CUTOFF, digest, find_ffmpeg, read_track_number, spectral_cutoff, validate_audio
 from engine import Engine
 from matching import (Candidate, Track, build_spec, detect_layout, extract_candidates, mismatch_html, parse_tracks,
-                      quality, queries, score_candidate)
+                      quality, queries, score_candidate, tracklist_from_ocr)
 from slskd_api import ApiError
 from store import Store
 
@@ -174,6 +174,19 @@ class MatchingTests(unittest.TestCase):
         self.assertIn('<b style="color:#d9534f">(Dub)</b>', html)
         self.assertIn('[WEB]', html)
         self.assertNotIn('<b', mismatch_html(Track('Tim Deluxe', 'JAS - Club Mix'), r'x\JAS (Club Mix).flac'))
+
+    def test_ocr_tracklist_cleanup(self):
+        # Lines as Windows OCR returned them for a real dark-theme tracklist screenshot.
+        raw = ['Disco Party Baby (Original Mix) by Vampire Sex', '00103112', '01', '00:11',
+               'Burnin• (Alex Neri and Tognarelli Rernix) by Kamasutra Corinna Joseph',
+               '00:34:29 I Feel (Paul Adam Remix) by DJ Spen, Ann Nesby', 'oo:17104',
+               '12. Prospa - Don’t Stop', 'Stand by Me by Ben E. King']
+        self.assertEqual(tracklist_from_ocr(raw), [
+            'Vampire Sex - Disco Party Baby (Original Mix)',
+            "Kamasutra Corinna Joseph - Burnin' (Alex Neri and Tognarelli Remix)",
+            'DJ Spen, Ann Nesby - I Feel (Paul Adam Remix)',
+            "Prospa - Don't Stop",
+            'Ben E. King - Stand by Me'])
 
     def test_extract_skips_non_audio(self):
         responses = [{'username': 'p', 'hasFreeUploadSlot': True, 'queueLength': 0, 'uploadSpeed': 10,

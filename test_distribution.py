@@ -55,7 +55,7 @@ class DistributionTests(unittest.TestCase):
         self.assertTrue(all(Path(name).name == name for name in SOURCE_FILES))
         # Every module the app imports must ship in the source package.
         root = Path(__file__).resolve().parent
-        for module in ('matching', 'slskd_api', 'audio', 'store', 'engine', 'playlist_core'):
+        for module in ('matching', 'slskd_api', 'audio', 'store', 'engine', 'ocr', 'playlist_core'):
             self.assertIn(module + '.py', SOURCE_FILES)
             self.assertTrue((root / (module + '.py')).is_file())
 

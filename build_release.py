@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SOURCE_FILES = (
     'playlist_app.py', 'playlist_core.py', 'matching.py', 'slskd_api.py', 'audio.py', 'store.py', 'engine.py',
+    'ocr.py',
     'slskd_runtime.py', 'app_setup.py', 'package_check.py', 'package_lifecycle.py',
     'requirements.txt', 'requirements-gui.txt', 'requirements-build.txt', 'build_release.py',
     'test_playlist.py', 'test_slskd_runtime.py', 'test_distribution.py', 'gui_smoke.py', 'live_search_check.py',

@@ -317,6 +317,43 @@ def parse_csv(path) -> list[Track]:
     return tracks
 
 
+_TIMESTAMP = re.compile(r'^\s*[\[(]?\d{1,2}[:.]\d{2}(?:[:.]\d{2})?[\])]?\s*[-–—|.]?\s*')
+_OCR_CHARS = str.maketrans({'•': "'", '‘': "'", '’': "'", '´': "'", '`': "'", '–': '-', '—': '-', '|': 'I'})
+_VERSION_FIXES = {w.replace('m', 'rn'): w for w in ('remix', 'mix', 'mixed', 'remaster', 'remastered', 'dream')}
+
+
+def _fix_ocr_word(word: str) -> str:
+    """OCR reads "m" as "rn" ("Rernix"); undo it only where the result is a known version word."""
+    key = word.casefold()
+    if key in _VERSION_FIXES:
+        fixed = _VERSION_FIXES[key]
+        return fixed.capitalize() if word[:1].isupper() else fixed
+    return word
+
+
+def tracklist_from_ocr(lines) -> list[str]:
+    """Turn OCR'd tracklist lines into "Artist - Title" lines.
+
+    Timestamps, numbering and stray digit fragments are dropped; "Title by Artist"
+    (YouTube / 1001Tracklists style) is turned around. Lines that already contain
+    " - " are kept as they are and the column order is detected later.
+    """
+    result = []
+    for raw in lines:
+        line = ' '.join(str(raw).translate(_OCR_CHARS).split())
+        line = _TIMESTAMP.sub('', line)
+        line = _NUMBERED.sub('', line)
+        if sum(c.isalpha() for c in line) < 3:
+            continue
+        line = re.sub(r"[\w']+", lambda m: _fix_ocr_word(m.group(0)), line)
+        if not _SEPARATOR.search(line):
+            parts = re.split(r'\s+by\s+', line)
+            if len(parts) >= 2 and parts[-1].strip() and ' by '.join(parts[:-1]).strip():
+                line = f"{parts[-1].strip()} - {' by '.join(parts[:-1]).strip()}"
+        result.append(line)
+    return result
+
+
 def detect_layout(path) -> str:
     """Vote between 'Artist - Title' and 'Title - Artist' using brackets, mix words and credit lists."""
     if Path(path).suffix.casefold() == '.csv':
